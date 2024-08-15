@@ -175,7 +175,7 @@ def create_mesh(comm, G, pos):
     d = 3
     x = np.zeros(d * len(pos))
     for node, coord in pos.items():
-        x[d * node : d * node + 2] = coord[:]
+        x[d * node:d * node + 2] = coord[:]
     x = np.reshape(x, (len(pos), d))
 
     cells = np.array(list(G.edges))
@@ -434,14 +434,14 @@ def recover_solution(x, colours, V, Q):
     for c in colours:
         q = fem.Function(V[c])
         offset = V[c].dofmap.index_map.size_local * V[c].dofmap.index_map_bs
-        q.x.array[:offset] = x.array_r[start : start + offset]
+        q.x.array[:offset] = x.array_r[start:start + offset]
         q.x.scatter_forward()
         start += offset
         fluxes.append(q)
 
     p = fem.Function(Q)
     offset = Q.dofmap.index_map.size_local * Q.dofmap.index_map_bs
-    p.x.array[:offset] = x.array_r[start : start + offset]
+    p.x.array[:offset] = x.array_r[start:start + offset]
     p.x.scatter_forward()
     return fluxes, p
 
@@ -622,8 +622,7 @@ for c in colours:
 
     ds = ufl.Measure("ds", domain=sm[0], subdomain_data=fts_sm[c])
     L[c] = fem.form(
-        p_bc * v * ds(NodeType.BOUND_IN.value)
-        - p_bc * v * ds(NodeType.BOUND_OUT.value),
+        p_bc * v * ds(NodeType.BOUND_IN.value) - p_bc * v * ds(NodeType.BOUND_OUT.value),
         jit_options=jit_options,
     )
 
