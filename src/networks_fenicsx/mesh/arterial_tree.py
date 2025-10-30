@@ -7,14 +7,14 @@ from scipy.spatial.transform import Rotation
 from . import mesh
 from networks_fenicsx import config
 
-'''
+"""
 This file is based on the graphnics project (https://arxiv.org/abs/2212.02916), https://github.com/IngeborgGjerde/fenics-networks - forked on August 2022
 Copyright (C) 2022-2023 by Ingeborg Gjerde
 
 You can freely redistribute it and/or modify it under the terms of the GNU General Public License, version 3.0, provided that the above copyright notice is kept intact and that the source code is made available under an open-source license.
 
 Modified by Cécile Daversin-Catty - 2023
-'''
+"""
 
 """
 Creation of a tree-like network
@@ -42,8 +42,15 @@ Then it depends on the diameters
 """
 
 
-def make_arterial_tree(N, cfg: config.Config,
-                       radius0=1, gam=0.8, lmbda=8, directions=False, uniform_lengths=False):
+def make_arterial_tree(
+    N,
+    cfg: config.Config,
+    radius0=1,
+    gam=0.8,
+    lmbda=8,
+    directions=False,
+    uniform_lengths=False,
+):
     """
     N (int): number of levels in the arterial tree
     radius0 (float): radius of first vessel
@@ -113,14 +120,10 @@ def make_arterial_tree(N, cfg: config.Config,
                 L1, L2 = L, L
             # Bifurcation angles
             # angle for the smallest vessel
-            cos1 = (D0**4 + D1**4 - (D0**3 - D1**3) ** (4 / 3)) / (
-                2 * D0**2 * D1**2
-            )
+            cos1 = (D0**4 + D1**4 - (D0**3 - D1**3) ** (4 / 3)) / (2 * D0**2 * D1**2)
             angle1 = np.degrees(np.arccos(cos1))
             # angle for the biggest vessel
-            cos2 = (D0**4 + D2**4 - (D0**3 - D2**3) ** (4 / 3)) / (
-                2 * D0**2 * D2**2
-            )
+            cos2 = (D0**4 + D2**4 - (D0**3 - D2**3) ** (4 / 3)) / (2 * D0**2 * D2**2)
             angle2 = np.degrees(np.arccos(cos2))
 
             # direction-vector choose which vessel go to the right/left
@@ -185,7 +188,6 @@ def make_arterial_tree(N, cfg: config.Config,
 
     G.build_mesh()
     G.build_network_submeshes()
-    G.build_markers()
     G.compute_tangent()
 
     return G
@@ -225,7 +227,7 @@ def to_networks_graph(G_nx, cfg: config.Config):
 
 # Helper functions from https://gitlab.com/ValletAlexandra/NetworkGen
 def orientation(p, q, r):
-    '''
+    """
     to find the orientation of an ordered triplet (p,q,r)
     function returns the following values:
     0 : Collinear points
@@ -233,7 +235,7 @@ def orientation(p, q, r):
     2 : Counterclockwise
     See https://www.geeksforgeeks.org/orientation-3-ordered-points/amp/
     for details of below formula.
-    '''
+    """
 
     val = (float(q.y - p.y) * (r.x - q.x)) - (float(q.x - p.x) * (r.y - q.y))
     if val > 0:
@@ -249,7 +251,6 @@ def orientation(p, q, r):
 
 # This code is contributed by Ansh Riyal
 def doIntersect(p1, q1, p2, q2):
-
     # Find the 4 orientations required for
     # the general and special cases
     o1 = orientation(p1, q1, p2)
@@ -284,7 +285,6 @@ def doIntersect(p1, q1, p2, q2):
 
 
 def translation(p0, direction, length):
-
     # normalise the direction vector
     direction = normalize(direction)
 
@@ -294,7 +294,7 @@ def translation(p0, direction, length):
 
 
 def rotate_in_plane(x, n, angle):
-    """ angle : rotation degree """
+    """angle : rotation degree"""
 
     rotation_radians = np.radians(angle)
     rotation_axis = np.array(n)
@@ -316,9 +316,9 @@ def project_onto_plane(x, n):
 
 
 def compute_vessel_endpoint(previousvessel, surfacenormal, angle, length):
-    """ From a previous vessel defined in 3D,
+    """From a previous vessel defined in 3D,
     the brain surface at the end of the previous vessel,
-    angle and length : compute the coordinate of the end node of the current vessel """
+    angle and length : compute the coordinate of the end node of the current vessel"""
 
     # project the previous vessel in the current plane
     # and get the direction vector of the previous vessel
@@ -347,6 +347,11 @@ class Point:
 # Given three collinear points p, q, r, the function checks if
 # point q lies on line segment 'pr'
 def onSegment(p, q, r):
-    if ((q.x <= max(p.x, r.x)) and (q.x >= min(p.x, r.x)) and (q.y <= max(p.y, r.y)) and (q.y >= min(p.y, r.y))):
+    if (
+        (q.x <= max(p.x, r.x))
+        and (q.x >= min(p.x, r.x))
+        and (q.y <= max(p.y, r.y))
+        and (q.y >= min(p.y, r.y))
+    ):
         return True
     return False

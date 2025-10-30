@@ -3,20 +3,20 @@ import networkx as nx
 from networks_fenicsx import config
 import numpy as np
 
-'''
+"""
 This file is based on the graphnics project (https://arxiv.org/abs/2212.02916), https://github.com/IngeborgGjerde/fenics-networks - forked on August 2022
 Copyright (C) 2022-2023 by Ingeborg Gjerde
 
 You can freely redistribute it and/or modify it under the terms of the GNU General Public License, version 3.0, provided that the above copyright notice is kept intact and that the source code is made available under an open-source license.
 
 Modified by Cécile Daversin-Catty - 2023
-'''
+"""
 
 
 def make_line_graph(n, cfg: config.Config, dim=3):
-    '''
+    """
     Make a graph along the unit x-axis with n nodes
-    '''
+    """
 
     G = mesh.NetworkGraph(cfg)
 
@@ -24,39 +24,38 @@ def make_line_graph(n, cfg: config.Config, dim=3):
     G.add_nodes_from(range(0, n))
     for i in range(0, n):
         if dim == 2:
-            G.nodes[i]['pos'] = [i * dx, 0]
+            G.nodes[i]["pos"] = [i * dx, 0]
         else:
-            G.nodes[i]['pos'] = [i * dx, 0, 0]
+            G.nodes[i]["pos"] = [i * dx, 0, 0]
 
     for i in range(0, n - 1):
         G.add_edge(i, i + 1)
 
     G.build_mesh()
     G.build_network_submeshes()
-    G.build_markers()
     G.compute_tangent()
 
     return G
 
 
 def make_Y_bifurcation(cfg: config.Config, dim=3):
-    '''
+    """
     Make a 3 branches network with one bifurcation
-    '''
+    """
 
     G = mesh.NetworkGraph(cfg)
 
     G.add_nodes_from([0, 1, 2, 3])
     if dim == 2:
-        G.nodes[0]['pos'] = [0, 0]
-        G.nodes[1]['pos'] = [0, 0.5]
-        G.nodes[2]['pos'] = [-0.5, 1]
-        G.nodes[3]['pos'] = [0.5, 1]
+        G.nodes[0]["pos"] = [0, 0]
+        G.nodes[1]["pos"] = [0, 0.5]
+        G.nodes[2]["pos"] = [-0.5, 1]
+        G.nodes[3]["pos"] = [0.5, 1]
     else:
-        G.nodes[0]['pos'] = [0, 0, 0]
-        G.nodes[1]['pos'] = [0, 0.5, 0]
-        G.nodes[2]['pos'] = [-0.5, 1, 0]
-        G.nodes[3]['pos'] = [0.5, 1, 0]
+        G.nodes[0]["pos"] = [0, 0, 0]
+        G.nodes[1]["pos"] = [0, 0.5, 0]
+        G.nodes[2]["pos"] = [-0.5, 1, 0]
+        G.nodes[3]["pos"] = [0.5, 1, 0]
 
     G.add_edge(0, 1)
     G.add_edge(1, 2)
@@ -64,35 +63,33 @@ def make_Y_bifurcation(cfg: config.Config, dim=3):
 
     G.build_mesh()
     G.build_network_submeshes()
-    G.build_markers()
     G.compute_tangent()
 
     return G
 
 
 def make_double_Y_bifurcation(cfg: config.Config, dim=3):
-
     G = mesh.NetworkGraph(cfg)
 
     G.add_nodes_from([0, 1, 2, 3, 4, 5, 6, 7])
     if dim == 2:
-        G.nodes[0]['pos'] = [0, 0]
-        G.nodes[1]['pos'] = [0, 0.5]
-        G.nodes[2]['pos'] = [-0.5, 1]
-        G.nodes[3]['pos'] = [0.5, 1]
-        G.nodes[4]['pos'] = [-0.75, 1.5]
-        G.nodes[5]['pos'] = [-0.25, 1.5]
-        G.nodes[6]['pos'] = [0.25, 1.5]
-        G.nodes[7]['pos'] = [0.75, 1.5]
+        G.nodes[0]["pos"] = [0, 0]
+        G.nodes[1]["pos"] = [0, 0.5]
+        G.nodes[2]["pos"] = [-0.5, 1]
+        G.nodes[3]["pos"] = [0.5, 1]
+        G.nodes[4]["pos"] = [-0.75, 1.5]
+        G.nodes[5]["pos"] = [-0.25, 1.5]
+        G.nodes[6]["pos"] = [0.25, 1.5]
+        G.nodes[7]["pos"] = [0.75, 1.5]
     else:
-        G.nodes[0]['pos'] = [0, 0, 0]
-        G.nodes[1]['pos'] = [0, 0.5, 0]
-        G.nodes[2]['pos'] = [-0.5, 1, 0]
-        G.nodes[3]['pos'] = [0.5, 1, 0]
-        G.nodes[4]['pos'] = [-0.75, 1.5, 0]
-        G.nodes[5]['pos'] = [-0.25, 1.5, 0]
-        G.nodes[6]['pos'] = [0.25, 1.5, 0]
-        G.nodes[7]['pos'] = [0.75, 1.5, 0]
+        G.nodes[0]["pos"] = [0, 0, 0]
+        G.nodes[1]["pos"] = [0, 0.5, 0]
+        G.nodes[2]["pos"] = [-0.5, 1, 0]
+        G.nodes[3]["pos"] = [0.5, 1, 0]
+        G.nodes[4]["pos"] = [-0.75, 1.5, 0]
+        G.nodes[5]["pos"] = [-0.25, 1.5, 0]
+        G.nodes[6]["pos"] = [0.25, 1.5, 0]
+        G.nodes[7]["pos"] = [0.75, 1.5, 0]
 
     G.add_edge(0, 1)
     G.add_edge(1, 2)
@@ -105,7 +102,6 @@ def make_double_Y_bifurcation(cfg: config.Config, dim=3):
 
     G.build_mesh()
     G.build_network_submeshes()
-    G.build_markers()
     G.compute_tangent()
 
     return G
@@ -135,11 +131,11 @@ def tree_edges(n, r):
 
 
 def make_tree(n: int, H: float, W: float, cfg: config.Config, dim=3):
-    '''
+    """
     n : number of generations
     H : height
     W : width
-    '''
+    """
 
     # FIXME : add parameter r : branching factor of the tree (each node has r children)
     r = 2
@@ -160,11 +156,11 @@ def make_tree(n: int, H: float, W: float, cfg: config.Config, dim=3):
     # Add two first nodes
     idx = 0
     if dim == 2:
-        G.nodes[idx]['pos'] = [0, 0]
-        G.nodes[idx + 1]['pos'] = [0, y_offset]
+        G.nodes[idx]["pos"] = [0, 0]
+        G.nodes[idx + 1]["pos"] = [0, y_offset]
     else:
-        G.nodes[idx]['pos'] = [0, 0, 0]
-        G.nodes[idx + 1]['pos'] = [0, y_offset, 0]
+        G.nodes[idx]["pos"] = [0, 0, 0]
+        G.nodes[idx + 1]["pos"] = [0, y_offset, 0]
     idx = idx + 2
 
     # Add nodes for rest of the tree
@@ -182,25 +178,23 @@ def make_tree(n: int, H: float, W: float, cfg: config.Config, dim=3):
         x_coord.sort()
         for x in x_coord:
             if dim == 2:
-                G.nodes[idx]['pos'] = [x, y]
+                G.nodes[idx]["pos"] = [x, y]
             else:
-                G.nodes[idx]['pos'] = [x, y, 0]
+                G.nodes[idx]["pos"] = [x, y, 0]
             idx = idx + 1
 
     edges = tree_edges(nb_nodes, r)
-    for (e0, e1) in list(edges):
+    for e0, e1 in list(edges):
         G.add_edge(e0, e1)
 
     G.build_mesh()
     G.build_network_submeshes()
-    G.build_markers()
     G.compute_tangent()
 
     return G
 
 
 def make_honeycomb(n, m, cfg: config.Config, dim=3):
-
     # Make hexagonal mesh
     G_ = nx.hexagonal_lattice_graph(n, m)
     G_ = nx.convert_node_labels_to_integers(G_)
@@ -210,7 +204,7 @@ def make_honeycomb(n, m, cfg: config.Config, dim=3):
     # Hexagonal mesh contains edges directed in both directions
     # Remove double defined edges (keep only one direction)
     edges_to_remove = []
-    for (e1, e2) in G.edges():
+    for e1, e2 in G.edges():
         if e2 < e1:
             edges_to_remove.append((e1, e2))
     G.remove_edges_from(edges_to_remove)
@@ -248,15 +242,14 @@ def make_honeycomb(n, m, cfg: config.Config, dim=3):
     # 2D to 3D points if needed
     if dim == 3:
         for idx in range(len(G.nodes())):
-            G.nodes[idx]['pos'] = [G.nodes[idx]['pos'][0], G.nodes[idx]['pos'][1], 0]
+            G.nodes[idx]["pos"] = [G.nodes[idx]["pos"][0], G.nodes[idx]["pos"][1], 0]
 
     G.build_mesh()
     G.build_network_submeshes()
-    G.build_markers()
     G.compute_tangent()
 
     return G
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     make_Y_bifurcation(cfg=config.Config())
