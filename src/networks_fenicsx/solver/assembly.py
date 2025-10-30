@@ -97,11 +97,16 @@ class Assembler:
         Pqs = [fem.functionspace(submsh, flux_element) for submsh in submeshes]
 
         pressure_degree = self.cfg.pressure_degree
+        if pressure_degree == 0:
+            discontinuous = True
+        else:
+            discontinuous = False
         pressure_element = basix.ufl.element(
             family="Lagrange",
             cell="interval",
             degree=pressure_degree,
             lagrange_variant=basix.LagrangeVariant.equispaced,
+            discontinuous=discontinuous,
         )
         Pp = fem.functionspace(self._network_mesh.mesh, pressure_element)
 

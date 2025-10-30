@@ -15,8 +15,8 @@ cfg = Config()
 cfg.outdir = "demo_arterial_tree"
 cfg.export = True
 cfg.lm_spaces = False
-cfg.flux_degree = 2
-cfg.pressure_degree = 1
+cfg.flux_degree = 1
+cfg.pressure_degree = 0
 
 
 class p_bc_expr:
@@ -25,7 +25,7 @@ class p_bc_expr:
 
 
 # One element per segment
-cfg.lcar = 0.005
+cfg.lcar = 0.0025
 
 # Cleaning directory only once
 cfg.clean_dir()
@@ -35,9 +35,6 @@ p = Path(cfg.outdir)
 p.mkdir(exist_ok=True)
 
 n = 3
-if MPI.COMM_WORLD.rank == 0:
-    print("Clearing cache")
-    os.system("rm -rf $HOME/.cache/fenics/")
 
 G = arterial_tree.make_arterial_tree(N=n)
 
