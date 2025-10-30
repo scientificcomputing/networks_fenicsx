@@ -7,13 +7,10 @@ from ufl import (
     grad,
     Constant,
     Measure,
-    ZeroBaseForm,
 )
 from dolfinx import fem
 import ufl
 
-# from dolfinx import io
-from dolfinx import mesh as _mesh
 
 # from mpi4py import MPI
 import basix
@@ -131,8 +128,7 @@ class Assembler:
         else:
             # Manually computes the oriented jump vectors for the bifurcation conditions
             L_jumps = [
-                [ufl.ZeroBaseForm((q,)) for _ in self._network_mesh.bifurcation_values]
-                for q in qs
+                [ufl.ZeroBaseForm((q,)) for _ in self._network_mesh.bifurcation_values] for q in qs
             ]
             for i, submesh in enumerate(self._network_mesh.submeshes):
                 for j, bifurcation in enumerate(self._network_mesh.bifurcation_values):
@@ -180,12 +176,8 @@ class Assembler:
             ds_edge = Measure("ds", domain=submesh, subdomain_data=facet_marker)
 
             self.a[i][i] = fem.form(qs[i] * vs[i] * dx_edge)
-            self.a[num_qs][i] = fem.form(
-                phi * self.dds(qs[i]) * dx_edge, entity_maps=[entity_map]
-            )
-            self.a[i][num_qs] = fem.form(
-                -p * self.dds(vs[i]) * dx_edge, entity_maps=[entity_map]
-            )
+            self.a[num_qs][i] = fem.form(phi * self.dds(qs[i]) * dx_edge, entity_maps=[entity_map])
+            self.a[i][num_qs] = fem.form(-p * self.dds(vs[i]) * dx_edge, entity_maps=[entity_map])
 
             # Boundary condition on the correct space
             P1_e = fem.functionspace(submesh, ("Lagrange", 1))
@@ -241,9 +233,7 @@ class Assembler:
                         entity_maps=entity_maps,
                     )
 
-                self.L[num_qs + 1 + j] = fem.form(
-                    1e-16 * mus[j] * dx
-                )  # TODO Use constant
+                self.L[num_qs + 1 + j] = fem.form(1e-16 * mus[j] * dx)  # TODO Use constant
 
         # Add zero to uninitialized diagonal blocks (needed by petsc)
         self.a[num_qs][num_qs] = fem.form(ufl.ZeroBaseForm((p, phi)))
@@ -287,9 +277,7 @@ class Assembler:
             b_.setValuesBlocked(range(_b_size), _b_values)
 
             # Assemble jump vectors and convert to PETSc.Mat() object
-            self.jump_vectors = [
-                [fem.petsc.assemble_vector(L) for L in qi] for qi in self.L_jumps
-            ]
+            self.jump_vectors = [[fem.petsc.assemble_vector(L) for L in qi] for qi in self.L_jumps]
             jump_vecs = [
                 [petsc_utils.convert_vec_to_petscmatrix(b_row) for b_row in qi]
                 for qi in self.jump_vectors
@@ -304,9 +292,7 @@ class Assembler:
                     )[0]
                     A_.setValuesBlocked(
                         _A_size[0] + i,
-                        range(
-                            jump_vec.getSize()[1] * j, jump_vec.getSize()[1] * (j + 1)
-                        ),
+                        range(jump_vec.getSize()[1] * j, jump_vec.getSize()[1] * (j + 1)),
                         jump_vec_values,
                     )
                     jump_vec.transpose()
@@ -314,9 +300,7 @@ class Assembler:
                         range(jump_vec.getSize()[0]), range(jump_vec.getSize()[1])
                     )
                     A_.setValuesBlocked(
-                        range(
-                            jump_vec.getSize()[0] * j, jump_vec.getSize()[0] * (j + 1)
-                        ),
+                        range(jump_vec.getSize()[0] * j, jump_vec.getSize()[0] * (j + 1)),
                         _A_size[1] + i,
                         jump_vec_T_values,
                     )
@@ -331,25 +315,19 @@ class Assembler:
 
     def bilinear_forms(self):
         if self.a is None:
-            logging.error(
-                "Bilinear forms haven't been computed. Need to call compute_forms()"
-            )
+            logging.error("Bilinear forms haven't been computed. Need to call compute_forms()")
         else:
             return self.a
 
     def bilinear_form(self, i: int, j: int):
         a = self.bilinear_forms()
         if i > len(a) or j > len(a[i]):
-            logging.error(
-                "Bilinear form a[" + str(i) + "][" + str(j) + "] out of range"
-            )
+            logging.error("Bilinear form a[" + str(i) + "][" + str(j) + "] out of range")
         return a[i][j]
 
     def linear_forms(self):
         if self.L is None:
-            logging.error(
-                "Linear forms haven't been computed. Need to call compute_forms()"
-            )
+            logging.error("Linear forms haven't been computed. Need to call compute_forms()")
         else:
             return self.L
 
