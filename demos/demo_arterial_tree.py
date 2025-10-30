@@ -29,7 +29,7 @@ class p_bc_expr:
 
 
 # One element per segment
-cfg.lcar = 0.0025
+cfg.lcar = 0.001
 
 # Cleaning directory only once
 cfg.clean_dir()
@@ -40,7 +40,7 @@ p.mkdir(exist_ok=True)
 
 n = 3
 
-G = arterial_tree.make_arterial_tree(N=n)
+G = arterial_tree.make_arterial_tree(N=n, directions=[1, 1, 1])
 
 network_mesh = NetworkMesh(G, cfg)
 assembler = assembly.Assembler(cfg, network_mesh)
