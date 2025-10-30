@@ -1,3 +1,14 @@
+"""
+This file is based on the graphnics project (https://arxiv.org/abs/2212.02916), https://github.com/IngeborgGjerde/fenics-networks - forked on August 2022
+Copyright (C) 2022-2023 by Ingeborg Gjerde
+
+You can freely redistribute it and/or modify it under the terms of the GNU General Public License, version 3.0, provided that the above copyright notice is kept intact and that the source code is made available under an open-source license.
+
+Modified by Cécile Daversin-Catty - 2023
+Modified by Joseph P. Dean - 2023
+Modified by Jørgen S. Dokken - 2025
+"""
+
 from operator import add
 from ufl import (
     TrialFunction,
@@ -17,21 +28,11 @@ import basix
 from petsc4py import PETSc
 import logging
 import numpy as np
-
+import numpy.typing as npt
 from networks_fenicsx.mesh import mesh
 from networks_fenicsx.utils import petsc_utils
 from networks_fenicsx.utils.timers import timeit
 from networks_fenicsx import config
-
-"""
-This file is based on the graphnics project (https://arxiv.org/abs/2212.02916), https://github.com/IngeborgGjerde/fenics-networks - forked on August 2022
-Copyright (C) 2022-2023 by Ingeborg Gjerde
-
-You can freely redistribute it and/or modify it under the terms of the GNU General Public License, version 3.0, provided that the above copyright notice is kept intact and that the source code is made available under an open-source license.
-
-Modified by Cécile Daversin-Catty - 2023
-Modified by Joseph P. Dean - 2023
-"""
 
 
 def flux_term(q, facet_marker, tag):
@@ -120,11 +121,11 @@ class Assembler:
             vs.append(TestFunction(Pq))
 
         # Lagrange multipliers
-        lmbdas = []
-        mus = []
+        lmbda = None
+        mu = None
         if self.cfg.lm_spaces:
-            lmbdas.append(TrialFunction(self.lm_space))
-            mus.append(TestFunction(self.lm_space))
+            lmbda = TrialFunction(self.lm_space)
+            mu = TestFunction(self.lm_space)
         else:
             # Manually computes the oriented jump vectors for the bifurcation conditions
             L_jumps = [
@@ -159,8 +160,7 @@ class Assembler:
 
         # Initialize forms
         num_qs = len(submeshes)
-        num_lmbdas = len(lmbdas)
-        num_blocks = num_qs + num_lmbdas + 1
+        num_blocks = num_qs + int(self.cfg.lm_spaces) + 1
         self.a = [[None] * num_blocks for i in range(num_blocks)]
         self.L = [None] * num_blocks
 
@@ -191,49 +191,55 @@ class Assembler:
             )
 
         if self.cfg.lm_spaces:
-            edge_list = list(self.G.edges.keys())
-            entity_maps = {self.G.lm_smsh: np.zeros(1, dtype=np.int32)}
-            for j, bix in enumerate(self.G.bifurcation_ixs):
-                # Add point integrals (jump)
-                for i, e in enumerate(self.G.in_edges(bix)):
-                    ds_edge = Measure(
-                        "ds",
-                        domain=self.G.edges[e]["submesh"],
-                        subdomain_data=self.G.edges[e]["vf"],
+            # Since the multiplier mesh is defined wrt to the submesh, we should use it as base.
+            # But on the parent mesh, the bifurcation is interior facet.
+            # Map (bifurcation, edge) to local integration measure index
+            bifurcation_ie_lookup: dict[tuple[int, int], int] = {}
+            bifurcation_ie_data: list[tuple[int, npt.NDArray[np.int32]]] = []
+            counter = 0
+            for bifurcation in self._network_mesh.bifurcation_values:
+                in_edges = self._network_mesh.in_edges(bifurcation)
+                out_edges = self._network_mesh.out_edges(bifurcation)
+                for edge in in_edges + out_edges:
+                    sm = self._network_mesh.submeshes[edge]
+                    smfm = self._network_mesh.submesh_facet_markers[edge]
+                    integration_entities = fem.compute_integration_domains(
+                        fem.IntegralType.exterior_facet, sm.topology, smfm.find(bifurcation)
+                    ).reshape(-1, 2)
+                    parent_to_sub = self._network_mesh.entity_maps[edge].sub_topology_to_topology(
+                        integration_entities[:, 0], inverse=False
                     )
-                    edge_ix = edge_list.index(e)
-                    assert self.a[num_qs + 1 + j][edge_ix] is None
-                    assert self.a[edge_ix][num_qs + 1 + j] is None
+                    integration_entities[:, 0] = parent_to_sub
+                    bifurcation_ie_lookup[(int(bifurcation), int(edge))] = counter
+                    bifurcation_ie_data.append((counter, integration_entities.flatten().copy()))
+                    counter += 1
 
-                    self.a[num_qs + 1 + j][edge_ix] = fem.form(
-                        mus[j] * qs[edge_ix] * ds_edge(self.G.BIF_IN),
-                        entity_maps=entity_maps,
-                    )
-                    self.a[edge_ix][num_qs + 1 + j] = fem.form(
-                        lmbdas[j] * vs[edge_ix] * ds_edge(self.G.BIF_IN),
-                        entity_maps=entity_maps,
-                    )
+            ds = ufl.Measure(
+                "ds", domain=self._network_mesh.mesh, subdomain_data=bifurcation_ie_data
+            )
+            for edge in range(self._network_mesh._num_segments):
+                self.a[edge][num_qs + 1] = ufl.ZeroBaseForm((lmbda, vs[edge]))
+                self.a[num_qs + 1][edge] = ufl.ZeroBaseForm((mu, qs[edge]))
 
-                for i, e in enumerate(self.G.out_edges(bix)):
-                    ds_edge = Measure(
-                        "ds",
-                        domain=self.G.edges[e]["submesh"],
-                        subdomain_data=self.G.edges[e]["vf"],
-                    )
-                    edge_ix = edge_list.index(e)
-                    assert self.a[num_qs + 1 + j][edge_ix] is None
-                    assert self.a[edge_ix][num_qs + 1 + j] is None
+            for bix in self._network_mesh.bifurcation_values:
+                # Add flux contribution from incoming edges
+                in_edges = self._network_mesh.in_edges(bix)
+                for edge in in_edges:
+                    idx = bifurcation_ie_lookup[(int(bix), int(edge))]
+                    self.a[num_qs + 1][edge] += mu * qs[edge] * ds(idx)
+                    self.a[edge][num_qs + 1] += lmbda * vs[edge] * ds(idx)
 
-                    self.a[num_qs + 1 + j][edge_ix] = fem.form(
-                        -mus[j] * qs[edge_ix] * ds_edge(self.G.BIF_OUT),
-                        entity_maps=entity_maps,
-                    )
-                    self.a[edge_ix][num_qs + 1 + j] = fem.form(
-                        -lmbdas[j] * vs[edge_ix] * ds_edge(self.G.BIF_OUT),
-                        entity_maps=entity_maps,
-                    )
+                for edge in self._network_mesh.out_edges(bix):
+                    idx = bifurcation_ie_lookup[(int(bix), int(edge))]
 
-                self.L[num_qs + 1 + j] = fem.form(1e-16 * mus[j] * dx)  # TODO Use constant
+                    self.a[num_qs + 1][edge] -= mu * qs[edge] * ds(idx)
+                    self.a[edge][num_qs + 1] -= lmbda * vs[edge] * ds(idx)
+
+                self.L[num_qs + 1] = fem.form(ufl.ZeroBaseForm((mu,)))
+            entity_maps = [self._network_mesh.lm_map, *self._network_mesh.entity_maps]
+            for i in range(self._network_mesh._num_segments):
+                self.a[i][num_qs + 1] = fem.form(self.a[i][num_qs + 1], entity_maps=entity_maps)
+                self.a[num_qs + 1][i] = fem.form(self.a[num_qs + 1][i], entity_maps=entity_maps)
 
         # Add zero to uninitialized diagonal blocks (needed by petsc)
         self.a[num_qs][num_qs] = fem.form(ufl.ZeroBaseForm((p, phi)))
@@ -256,6 +262,8 @@ class Assembler:
             self.b = b
             return (A, b)
         else:
+            if self._network_mesh.mesh.comm.size > 1:
+                raise RuntimeError("Assembly with jump conditions only implemented for serial runs")
             _A_size = A.getSize()
             _b_size = b.getSize()
 

@@ -12,9 +12,13 @@ from networks_fenicsx.config import Config
 from networks_fenicsx.utils.post_processing import export  # , perf_plot
 
 cfg = Config()
-cfg.outdir = "demo_arterial_tree"
 cfg.export = True
-cfg.lm_spaces = False
+cfg.lm_spaces = True
+
+if cfg.lm_spaces:
+    cfg.outdir = "demo_arterial_tree_lm"
+else:
+    cfg.outdir = "demo_arterial_tree"
 cfg.flux_degree = 1
 cfg.pressure_degree = 0
 
