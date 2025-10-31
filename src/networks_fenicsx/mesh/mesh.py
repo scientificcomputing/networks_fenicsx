@@ -60,11 +60,7 @@ class NetworkMesh:
         self._build_mesh(graph)
         self._build_network_submeshes()
         self._tangent = compute_tangent(self.mesh)
-        if self._cfg.lm_spaces:
-            self._create_lm_submesh()
-        else:
-            self._lm_mesh = None  # type: ignore
-            self._lm_map = None  # type: ignore
+        self._create_lm_submesh()
 
     @property
     def lm_mesh(self) -> mesh.Mesh:
@@ -115,15 +111,13 @@ class NetworkMesh:
         vertex_coords = np.asarray([graph.nodes[v]["pos"] for v in graph.nodes()])
         cells_array = np.asarray([[u, v] for u, v in graph.edges()])
 
-        line_weights = np.linspace(
-            0, 1, int(np.ceil(1 / self.cfg.lcar)), endpoint=False
-        )[1:][:, None]
+        line_weights = np.linspace(0, 1, int(np.ceil(1 / self.cfg.lcar)), endpoint=False)[1:][
+            :, None
+        ]
 
         self._num_segments = cells_array.shape[0]
 
-        graph_nodes, num_connections = np.unique(
-            cells_array.flatten(), return_counts=True
-        )
+        graph_nodes, num_connections = np.unique(cells_array.flatten(), return_counts=True)
         self._bifurcation_values = np.flatnonzero(num_connections > 1)
         self._boundary_values = np.flatnonzero(num_connections == 1)
 
@@ -150,9 +144,7 @@ class NetworkMesh:
         for boundary in self._boundary_values:
             in_edges = graph.in_edges(boundary)
             out_edges = graph.out_edges(boundary)
-            assert len(in_edges) + len(out_edges) == 1, (
-                "Boundary node with multiple edges"
-            )
+            assert len(in_edges) + len(out_edges) == 1, "Boundary node with multiple edges"
             if len(in_edges) == 1:
                 self._boundary_in_nodes.append(int(boundary))
             else:
@@ -176,15 +168,13 @@ class NetworkMesh:
                     start = vertex_coords[segment[0]]
                     end = vertex_coords[segment[1]]
 
-                    internal_line_coords = (
-                        start * (1 - line_weights) + end * line_weights
-                    )
+                    internal_line_coords = start * (1 - line_weights) + end * line_weights
                     mesh_nodes = np.vstack((mesh_nodes, internal_line_coords))
                     cells.append([segment[0], start_coord_pos])
                     segment_connectivity = (
-                        np.repeat(np.arange(internal_line_coords.shape[0]), 2)[
-                            1:-1
-                        ].reshape(internal_line_coords.shape[0] - 1, 2)
+                        np.repeat(np.arange(internal_line_coords.shape[0]), 2)[1:-1].reshape(
+                            internal_line_coords.shape[0] - 1, 2
+                        )
                         + start_coord_pos
                     )
                     cells.append(segment_connectivity)
@@ -209,9 +199,7 @@ class NetworkMesh:
             MPI.COMM_WORLD,
             x=mesh_nodes,
             cells=cells,
-            e=ufl.Mesh(
-                basix.ufl.element("Lagrange", "interval", 1, shape=(self._geom_dim,))
-            ),
+            e=ufl.Mesh(basix.ufl.element("Lagrange", "interval", 1, shape=(self._geom_dim,))),
             partitioner=partitioner,
             max_facet_to_cell_links=np.max(num_connections),
         )
@@ -237,9 +225,7 @@ class NetworkMesh:
             lv = np.empty((0, 1), dtype=np.int64)
             lvv = np.empty((0,), dtype=np.int32)
         self.mesh.topology.create_connectivity(0, 1)
-        local_vertices, local_vertex_values = _io.distribute_entity_data(
-            self.mesh, 0, lv, lvv
-        )
+        local_vertices, local_vertex_values = _io.distribute_entity_data(self.mesh, 0, lv, lvv)
         self._facet_markers = mesh.meshtags_from_entities(
             self.mesh,
             0,
@@ -250,9 +236,7 @@ class NetworkMesh:
         self.subdomains.name = "subdomains"
         self.boundaries.name = "bifurcations"
         if self.cfg.export:
-            with _io.XDMFFile(
-                self.mesh.comm, self.cfg.outdir + "/mesh/mesh.xdmf", "w"
-            ) as file:
+            with _io.XDMFFile(self.mesh.comm, self.cfg.outdir + "/mesh/mesh.xdmf", "w") as file:
                 file.write_mesh(self.mesh)
                 file.write_meshtags(self.subdomains, self.mesh.geometry)
                 file.write_meshtags(self.boundaries, self.mesh.geometry)
@@ -333,9 +317,7 @@ class NetworkMesh:
 
     def export_tangent(self):
         if self.cfg.export:
-            with _io.XDMFFile(
-                self.comm, self.cfg.outdir + "/mesh/tangent.xdmf", "w"
-            ) as file:
+            with _io.XDMFFile(self.comm, self.cfg.outdir + "/mesh/tangent.xdmf", "w") as file:
                 file.write_mesh(self.mesh)
                 file.write_function(self.tangent)
         else:
@@ -377,9 +359,7 @@ def compute_tangent(domain: mesh.Mesh) -> fem.Function:
     is_x_aligned = np.isclose(global_orientation, 0)
     global_orientation[is_x_aligned] = np.sign(np.dot(tangent[is_x_aligned], [1, 0, 0]))
     tangent *= global_orientation[:, None]
-    assert np.all(np.linalg.norm(tangent, axis=1) > 0), (
-        "Zero-length tangent vector detected"
-    )
+    assert np.all(np.linalg.norm(tangent, axis=1) > 0), "Zero-length tangent vector detected"
     gdim = domain.geometry.dim
     DG0 = fem.functionspace(domain, ("DG", 0, (gdim,)))
     global_tangent = fem.Function(DG0)

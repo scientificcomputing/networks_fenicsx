@@ -1,8 +1,3 @@
-from . import mesh
-import networkx as nx
-from networks_fenicsx import config
-import numpy as np
-
 """
 This file is based on the graphnics project (https://arxiv.org/abs/2212.02916), https://github.com/IngeborgGjerde/fenics-networks - forked on August 2022
 Copyright (C) 2022-2023 by Ingeborg Gjerde
@@ -10,16 +5,19 @@ Copyright (C) 2022-2023 by Ingeborg Gjerde
 You can freely redistribute it and/or modify it under the terms of the GNU General Public License, version 3.0, provided that the above copyright notice is kept intact and that the source code is made available under an open-source license.
 
 Modified by Cécile Daversin-Catty - 2023
+Modified by Jørgen S. Dokken - 2025
 """
 
+import networkx as nx
+import numpy as np
 
-def make_line_graph(n, cfg: config.Config, dim=3):
+
+def make_line_graph(n, dim=3):
     """
     Make a graph along the unit x-axis with n nodes
     """
 
-    G = mesh.NetworkGraph(cfg)
-
+    G = nx.DiGraph()
     dx = 1 / (n - 1)
     G.add_nodes_from(range(0, n))
     for i in range(0, n):
@@ -30,20 +28,15 @@ def make_line_graph(n, cfg: config.Config, dim=3):
 
     for i in range(0, n - 1):
         G.add_edge(i, i + 1)
-
-    G.build_mesh()
-    G.build_network_submeshes()
-    G.compute_tangent()
-
     return G
 
 
-def make_Y_bifurcation(cfg: config.Config, dim=3):
+def make_Y_bifurcation(dim=3):
     """
     Make a 3 branches network with one bifurcation
     """
 
-    G = mesh.NetworkGraph(cfg)
+    G = nx.DiGraph()
 
     G.add_nodes_from([0, 1, 2, 3])
     if dim == 2:
@@ -60,16 +53,11 @@ def make_Y_bifurcation(cfg: config.Config, dim=3):
     G.add_edge(0, 1)
     G.add_edge(1, 2)
     G.add_edge(1, 3)
-
-    G.build_mesh()
-    G.build_network_submeshes()
-    G.compute_tangent()
-
     return G
 
 
-def make_double_Y_bifurcation(cfg: config.Config, dim=3):
-    G = mesh.NetworkGraph(cfg)
+def make_double_Y_bifurcation(dim=3):
+    G = nx.DiGraph()
 
     G.add_nodes_from([0, 1, 2, 3, 4, 5, 6, 7])
     if dim == 2:
@@ -99,11 +87,6 @@ def make_double_Y_bifurcation(cfg: config.Config, dim=3):
     G.add_edge(2, 5)
     G.add_edge(3, 6)
     G.add_edge(3, 7)
-
-    G.build_mesh()
-    G.build_network_submeshes()
-    G.compute_tangent()
-
     return G
 
 
@@ -130,7 +113,7 @@ def tree_edges(n, r):
                 break
 
 
-def make_tree(n: int, H: float, W: float, cfg: config.Config, dim=3):
+def make_tree(n: int, H: float, W: float, dim=3):
     """
     n : number of generations
     H : height
@@ -139,7 +122,7 @@ def make_tree(n: int, H: float, W: float, cfg: config.Config, dim=3):
 
     # FIXME : add parameter r : branching factor of the tree (each node has r children)
     r = 2
-    G = mesh.NetworkGraph(cfg)
+    G = nx.DiGraph()
 
     nb_nodes_gen = []
     for i in range(n):
@@ -186,20 +169,13 @@ def make_tree(n: int, H: float, W: float, cfg: config.Config, dim=3):
     edges = tree_edges(nb_nodes, r)
     for e0, e1 in list(edges):
         G.add_edge(e0, e1)
-
-    G.build_mesh()
-    G.build_network_submeshes()
-    G.compute_tangent()
-
     return G
 
 
-def make_honeycomb(n, m, cfg: config.Config, dim=3):
+def make_honeycomb(n, m, dim=3):
     # Make hexagonal mesh
     G_ = nx.hexagonal_lattice_graph(n, m)
-    G_ = nx.convert_node_labels_to_integers(G_)
-
-    G = mesh.NetworkGraph(config=cfg, graph=G_)
+    G = nx.convert_node_labels_to_integers(G_)
 
     # Hexagonal mesh contains edges directed in both directions
     # Remove double defined edges (keep only one direction)
@@ -243,13 +219,8 @@ def make_honeycomb(n, m, cfg: config.Config, dim=3):
     if dim == 3:
         for idx in range(len(G.nodes())):
             G.nodes[idx]["pos"] = [G.nodes[idx]["pos"][0], G.nodes[idx]["pos"][1], 0]
-
-    G.build_mesh()
-    G.build_network_submeshes()
-    G.compute_tangent()
-
     return G
 
 
 if __name__ == "__main__":
-    make_Y_bifurcation(cfg=config.Config())
+    make_Y_bifurcation(dim=3)

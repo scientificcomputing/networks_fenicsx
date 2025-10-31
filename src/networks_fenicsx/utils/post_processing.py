@@ -16,8 +16,10 @@ def export(
     sol: PETSc.Vec,
     export_dir="results",
 ):
+    breakpoint()
+
     q_space = function_spaces[0]
-    p_space = function_spaces[-1]
+    p_space = function_spaces[-2]
     q_degree = q_space.element.basix_element.degree
     global_q_space = fem.functionspace(graph.mesh, ("DG", q_degree))
     global_q = fem.Function(global_q_space)
@@ -25,7 +27,6 @@ def export(
     # Recover solution
     fluxes = []
     start = 0
-
     # Flux spaces are the first M ones
     for i, (submesh, entity_map) in enumerate(zip(graph.submeshes, graph.entity_maps)):
         q_space = function_spaces[i]

@@ -19,6 +19,7 @@ class Config:
             dirpath = Path(self.outdir)
             if dirpath.exists() and dirpath.is_dir():
                 shutil.rmtree(dirpath, ignore_errors=True)
+        MPI.COMM_WORLD.barrier()
 
     def as_dict(self):
         return {k: v for k, v in self.__dict__.items()}

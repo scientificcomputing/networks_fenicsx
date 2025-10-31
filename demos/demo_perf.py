@@ -3,6 +3,7 @@ import numpy as np
 from pathlib import Path
 from mpi4py import MPI
 
+from networks_fenicsx import NetworkMesh
 from networks_fenicsx.mesh import mesh_generation
 from networks_fenicsx.solver import assembly, solver
 from networks_fenicsx.config import Config
@@ -39,16 +40,12 @@ p = Path(cfg.outdir)
 p.mkdir(exist_ok=True)
 
 for n in range(2, 7):
-
-    if MPI.COMM_WORLD.rank == 0:
-        print('Clearing cache')
-        os.system('rm -rf $HOME/.cache/fenics/')
-
-        with (p / 'profiling.txt').open('a') as f:
+        with (p / "profiling.txt").open("a") as f:
             f.write("n: " + str(n) + "\n")
 
     # Create tree
-    G = mesh_generation.make_tree(n=n, H=n, W=n, cfg=cfg)
+    G = mesh_generation.make_tree(n=n, H=n, W=n)
+    network_mesh = NetworkMesh(G, cfg)
 
     assembler = assembly.Assembler(cfg, G)
     # Compute forms
@@ -58,8 +55,9 @@ for n in range(2, 7):
     # Solve
     solver_ = solver.Solver(cfg, G, assembler)
     sol = solver_.solve()
-    (fluxes, global_flux, pressure) = export(cfg, G, assembler.function_spaces, sol,
-                                             export_dir="n" + str(n))
+    (fluxes, global_flux, pressure) = export(
+        cfg, G, assembler.function_spaces, sol, export_dir="n" + str(n)
+    )
 
 t_dict = timing_table(cfg)
 
@@ -76,9 +74,8 @@ p = Path(cfg.outdir)
 p.mkdir(exist_ok=True)
 
 for n in range(2, 7):
-
     if MPI.COMM_WORLD.rank == 0:
-        with (p / 'profiling.txt').open('a') as f:
+        with (p / "profiling.txt").open("a") as f:
             f.write("n: " + str(n) + "\n")
 
     # Create tree
@@ -92,8 +89,9 @@ for n in range(2, 7):
     # Solve
     solver_ = solver.Solver(cfg, G, assembler)
     sol = solver_.solve()
-    (fluxes, global_flux, pressure) = export(cfg, G, assembler.function_spaces, sol,
-                                             export_dir="n" + str(n))
+    (fluxes, global_flux, pressure) = export(
+        cfg, G, assembler.function_spaces, sol, export_dir="n" + str(n)
+    )
 
 t_dict = timing_table(cfg)
 
