@@ -1,8 +1,7 @@
-import os
 import numpy as np
 from pathlib import Path
 from mpi4py import MPI
-
+import shutil
 from networks_fenicsx import NetworkMesh
 from networks_fenicsx.mesh import mesh_generation
 from networks_fenicsx.solver import assembly, solver
@@ -11,21 +10,20 @@ from networks_fenicsx.utils.timers import timing_table
 from networks_fenicsx.utils.post_processing import export
 
 cfg = Config()
-cfg.outdir = "demo_perf_lm_spaces"
+cfg.outdir = "demo_perf_lm_space"
 cfg.export = True
 
-cfg.flux_degree = 3
-cfg.pressure_degree = 2
+cfg.flux_degree = 1
+cfg.pressure_degree = 0
 
-cfg.lm_spaces = True
-cfg.lm_jump_vectors = False
-# cfg.lm_spaces = False
-# cfg.lm_jump_vectors = True
+cfg.lm_space = True
 
 
 class p_bc_expr:
     def eval(self, x):
         return np.full(x.shape[1], x[1])
+
+
 
 
 # One element per segment
@@ -35,30 +33,32 @@ cfg.lcar = 2.0
 cfg.clean_dir()
 cfg.clean = False
 
-# cfg.outdir = cfg.outdir + "_cache0"
-p = Path(cfg.outdir)
-p.mkdir(exist_ok=True)
+cfg.outdir.mkdir(exist_ok=True,parents=True)
+cache_dir = cfg.outdir / f".cache"
+if cache_dir.exists():
+    shutil.rmtree(cache_dir, ignore_errors=True)
 
-for n in range(2, 7):
-        with (p / "profiling.txt").open("a") as f:
-            f.write("n: " + str(n) + "\n")
+jit_options = {"cache_dir": cache_dir}
+ns = [7]
+for n in ns:
+    with (cfg.outdir / "profiling.txt").open("a") as f:
+        f.write("n: " + str(n) + "\n")
 
     # Create tree
     G = mesh_generation.make_tree(n=n, H=n, W=n)
     network_mesh = NetworkMesh(G, cfg)
 
-    assembler = assembly.Assembler(cfg, G)
+    assembler = assembly.Assembler(cfg, network_mesh)
     # Compute forms
-    assembler.compute_forms(p_bc_ex=p_bc_expr())
-    # Assemble
-    assembler.assemble()
-    # Solve
-    solver_ = solver.Solver(cfg, G, assembler)
-    sol = solver_.solve()
-    (fluxes, global_flux, pressure) = export(
-        cfg, G, assembler.function_spaces, sol, export_dir="n" + str(n)
-    )
+    assembler.compute_forms(p_bc_ex=p_bc_expr(), jit_options=jit_options)
 
+    # Solve
+    solver_ = solver.Solver(cfg, network_mesh, assembler)
+    sol = solver_.solve()
+
+    (fluxes, global_flux, pressure) = export(
+        network_mesh, assembler.function_spaces, sol, outpath=cfg.outdir / f"n{n}"
+                )
 t_dict = timing_table(cfg)
 
 if MPI.COMM_WORLD.rank == 0:
@@ -68,29 +68,24 @@ if MPI.COMM_WORLD.rank == 0:
     print("solve time = ", t_dict["solve"])
 
 
-# Run again without clearing the cache
-cfg.outdir = cfg.outdir + "_cache1"
-p = Path(cfg.outdir)
-p.mkdir(exist_ok=True)
-
-for n in range(2, 7):
+for n in ns:
     if MPI.COMM_WORLD.rank == 0:
-        with (p / "profiling.txt").open("a") as f:
+        with (cfg.outdir / "profiling.txt").open("a") as f:
             f.write("n: " + str(n) + "\n")
 
     # Create tree
-    G = mesh_generation.make_tree(n=n, H=n, W=n, cfg=cfg)
+    G = mesh_generation.make_tree(n=n, H=n, W=n)
+    network_mesh = NetworkMesh(G, cfg)
 
-    assembler = assembly.Assembler(cfg, G)
+    assembler = assembly.Assembler(cfg, network_mesh)
     # Compute forms
-    assembler.compute_forms(p_bc_ex=p_bc_expr())
-    # Assemble
-    assembler.assemble()
+    assembler.compute_forms(p_bc_ex=p_bc_expr(), jit_options=jit_options)
+
     # Solve
-    solver_ = solver.Solver(cfg, G, assembler)
+    solver_ = solver.Solver(cfg, network_mesh, assembler)
     sol = solver_.solve()
     (fluxes, global_flux, pressure) = export(
-        cfg, G, assembler.function_spaces, sol, export_dir="n" + str(n)
+        network_mesh, assembler.function_spaces, sol, outpath=cfg.outdir / f"n{n}"
     )
 
 t_dict = timing_table(cfg)

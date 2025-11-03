@@ -13,7 +13,7 @@ from networks_fenicsx.mesh import mesh
 from networks_fenicsx.solver import assembly
 from networks_fenicsx.utils.timers import timeit
 from networks_fenicsx import config
-
+import dolfinx.fem.petsc
 
 class Solver:
     def __init__(
@@ -44,9 +44,9 @@ class Solver:
         self.ksp.setErrorIfNotConverged(True)
 
         # Solve
-        x = self.A.createVecLeft()
+        x = dolfinx.fem.petsc.create_vector(self.assembler.function_spaces)
         self.ksp.solve(self.b, x)
-
+        x.ghostUpdate(addv=PETSc.InsertMode.INSERT, mode=PETSc.ScatterMode.FORWARD)
         return x
 
     def __del__(self):

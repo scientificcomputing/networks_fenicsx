@@ -1,7 +1,8 @@
 from mpi4py import MPI
 from petsc4py import PETSc
 from dolfinx import fem, io
-
+from pathlib import Path
+import dolfinx.fem.petsc as _petsc
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -10,70 +11,70 @@ from networks_fenicsx import config
 
 
 def export(
-    config: config.Config,
-    graph: mesh.NetworkMesh,
-    function_spaces: list,
+    graph_mesh: mesh.NetworkMesh,
+    function_spaces: list[fem.FunctionSpace],
     sol: PETSc.Vec,
-    export_dir="results",
-):
-    breakpoint()
-
-    q_space = function_spaces[0]
-    p_space = function_spaces[-2]
+    outpath: Path | str | None = None,
+) -> tuple[list[fem.Function], fem.Function, fem.Function]:
+    """Export solution to files.
+    
+    Args:
+        graph_mesh: The network mesh
+        function_spaces: The function spaces corresponding to the solution
+        sol: The PETSc solution vectior
+        outpath: The output directory to save the files to.
+            If not supplied, no files are saved.
+    Returns:
+        The flux functions per submesh, the flux function represented
+        on the network mesh and the pressure function.    
+    """
+    outputs = [fem.Function(fs) for fs in function_spaces]
+    _petsc.assign(sol, outputs)
+    flux_functions = outputs[:-2]
+    
+    # Extract info regarding global flux space
+    q_space = flux_functions[0].function_space
     q_degree = q_space.element.basix_element.degree
-    global_q_space = fem.functionspace(graph.mesh, ("DG", q_degree))
-    global_q = fem.Function(global_q_space)
+    global_q_space = fem.functionspace(graph_mesh.mesh, ("DG", q_degree))
+    global_q = fem.Function(global_q_space, name="Global_Flux")
 
     # Recover solution
-    fluxes = []
-    start = 0
     # Flux spaces are the first M ones
-    for i, (submesh, entity_map) in enumerate(zip(graph.submeshes, graph.entity_maps)):
-        q_space = function_spaces[i]
-        q = fem.Function(q_space)
-        offset = q_space.dofmap.index_map.size_local * q_space.dofmap.index_map_bs
-        q.x.array[:offset] = sol.array_r[start : start + offset]
-        q.x.scatter_forward()
-        start += offset
-        fluxes.append(q)
-
+    for i, (flux, entity_map) in enumerate(zip(flux_functions, graph_mesh.entity_maps)):
         # Interpolated to DG space
+        flux.name = f"Flux_{i}"
+        submesh = flux.function_space.mesh
         num_cells_local = (
-            submesh.topology.index_map(submesh.topology.dim).size_local
+        submesh.topology.index_map(submesh.topology.dim).size_local
             + submesh.topology.index_map(submesh.topology.dim).num_ghosts
         )
         submesh_to_parent = entity_map.sub_topology_to_topology(
             np.arange(num_cells_local, dtype=np.int32), inverse=False
         )
         global_q.interpolate(
-            q,
+            flux,
             cells0=np.arange(num_cells_local, dtype=np.int32),
             cells1=submesh_to_parent,
         )
-    # Then we have the pressure space
-    offset = p_space.dofmap.index_map.size_local * p_space.dofmap.index_map_bs
-    pressure = fem.Function(p_space)
-    pressure.x.array[:offset] = sol.array_r[start : start + offset]
-    pressure.x.scatter_forward()
+    outputs[-2].name = "Pressure"
 
-    # Last we have LM
-    # NOTE: ADD processing here
-    # Write to file
-    for i, q in enumerate(fluxes):
+    if outpath is not None:
+        export_path = Path(outpath)
+        for i, q in enumerate(flux_functions):
+            with io.VTXWriter(
+                MPI.COMM_WORLD,
+                export_path / f"flux_{i}.bp",
+                q,
+            ) as f:
+                f.write(0.0)
+        with io.VTXWriter(MPI.COMM_WORLD, export_path / "flux.bp", global_q) as f:
+            f.write(0.0)
         with io.VTXWriter(
-            MPI.COMM_WORLD,
-            config.outdir + "/" + export_dir + "/flux_" + str(i) + ".bp",
-            q,
+            MPI.COMM_WORLD, export_path / "pressure.bp", outputs[-2]
         ) as f:
             f.write(0.0)
-    with io.VTXWriter(MPI.COMM_WORLD, config.outdir + "/" + export_dir + "/flux.bp", global_q) as f:
-        f.write(0.0)
-    with io.VTXWriter(
-        MPI.COMM_WORLD, config.outdir + "/" + export_dir + "/pressure.bp", pressure
-    ) as f:
-        f.write(0.0)
 
-    return (fluxes, global_q, pressure)
+    return (flux_functions, global_q, outputs[-2])
 
 
 def perf_plot(timing_dict):

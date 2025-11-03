@@ -6,13 +6,26 @@ import shutil
 
 @dataclass
 class Config:
-    outdir: str = "results"
-    lm_spaces: bool = True
+    _outdir: Path = Path("results")
+    lm_space: bool = True
     lcar: float = 1.0
-    flux_degree: int = 2
-    pressure_degree: int = 1
+    flux_degree: int = 1
+    pressure_degree: int = 0
     export: bool = False
     clean: bool = True
+    graph_coloring: bool = False
+
+    def __post_init__(self):
+        if self.graph_coloring and not self.lm_space:
+            raise ValueError("Graph coloring can only be used with lm_space=True")
+
+    @property
+    def outdir(self):
+        return self._outdir
+
+    @outdir.setter
+    def outdir(self, value):
+        self._outdir = Path(value)
 
     def clean_dir(self):
         if self.clean and MPI.COMM_WORLD.rank == 0:

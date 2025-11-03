@@ -2,7 +2,7 @@ import os
 import numpy as np
 from pathlib import Path
 from mpi4py import MPI
-
+import networkx
 from networks_fenicsx import NetworkMesh
 from networks_fenicsx.mesh import arterial_tree
 from networks_fenicsx.solver import assembly, solver
@@ -13,9 +13,9 @@ from networks_fenicsx.utils.post_processing import export  # , perf_plot
 
 cfg = Config()
 cfg.export = True
-cfg.lm_spaces = True
-
-if cfg.lm_spaces:
+cfg.lm_space = True
+cfg.graph_coloring = True
+if cfg.lm_space:
     cfg.outdir = "demo_arterial_tree_lm"
 else:
     cfg.outdir = "demo_arterial_tree"
@@ -29,7 +29,7 @@ class p_bc_expr:
 
 
 # One element per segment
-cfg.lcar = 0.001
+cfg.lcar = 0.025
 
 # Cleaning directory only once
 cfg.clean_dir()
@@ -38,20 +38,22 @@ cfg.clean = False
 p = Path(cfg.outdir)
 p.mkdir(exist_ok=True)
 
-n = 3
+n = 4
 
-G = arterial_tree.make_arterial_tree(N=n, directions=[1, 1, 1])
+G = arterial_tree.make_arterial_tree(N=n, directions=[1, 1, 1, 1])
+
 
 network_mesh = NetworkMesh(G, cfg)
 assembler = assembly.Assembler(cfg, network_mesh)
 # Compute forms
 assembler.compute_forms(p_bc_ex=p_bc_expr())
-# Assemble
-assembler.assemble()
 # Solve
 
 solver_ = solver.Solver(cfg, network_mesh, assembler)
 sol = solver_.solve()
 (fluxes, global_flux, pressure) = export(
-    cfg, network_mesh, assembler.function_spaces, sol, export_dir="n" + str(n)
+    graph_mesh=network_mesh,
+    function_spaces=assembler.function_spaces,
+    sol=sol,
+    outpath=Path(cfg.outdir) / f"n{n}",
 )

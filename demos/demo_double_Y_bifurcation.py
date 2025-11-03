@@ -28,7 +28,6 @@ class p_bc_expr:
 
 assembler = assembly.Assembler(cfg, G)
 assembler.compute_forms(p_bc_ex=p_bc_expr())
-assembler.assemble()
 
 solver = solver.Solver(cfg, G, assembler)
 sol = solver.solve()
