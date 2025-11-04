@@ -21,7 +21,6 @@ import logging
 import numpy as np
 import numpy.typing as npt
 from networks_fenicsx.mesh import mesh
-from networks_fenicsx.utils import petsc_utils
 from networks_fenicsx.utils.timers import timeit
 from networks_fenicsx import config
 
@@ -154,7 +153,7 @@ class Assembler:
 
         # Initialize forms
         num_qs = self._network_mesh._num_edge_colors
-        num_blocks = num_qs + int(self.cfg.lm_space) + 1
+        num_blocks = num_qs + 2
         self.a = [[None] * num_blocks for _ in range(num_blocks)]
         self.L = [None] * num_blocks
 
@@ -210,39 +209,8 @@ class Assembler:
             vs.append(ufl.TestFunction(Pq))
 
         # Lagrange multipliers
-        lmbda = None
-        mu = None
-        if self.cfg.lm_space:
-            lmbda = ufl.TrialFunction(self.lm_space)
-            mu = ufl.TestFunction(self.lm_space)
-        else:
-            # Manually computes the oriented jump vectors for the bifurcation conditions
-            L_jumps = [
-                [ufl.ZeroBaseForm((q,)) for _ in self._network_mesh.bifurcation_values] for q in qs
-            ]
-            for i, submesh in enumerate(self._network_mesh.submeshes):
-                for j, bifurcation in enumerate(self._network_mesh.bifurcation_values):
-                    # Add flux contribution from incoming edges
-                    in_edges = self._network_mesh.in_edges(bifurcation)
-                    for edge in in_edges:
-                        if edge == i:
-                            L_jumps[i][j] += flux_term(
-                                qs[edge],
-                                self._network_mesh.submesh_facet_markers[edge],
-                                bifurcation,
-                            )
-                    # Subtract flux contribution from outgoing edges
-                    out_edges = self._network_mesh.out_edges(bifurcation)
-                    for edge in out_edges:
-                        if edge == i:
-                            L_jumps[i][j] -= flux_term(
-                                qs[edge],
-                                self._network_mesh.submesh_facet_markers[edge],
-                                bifurcation,
-                            )
-            self.L_jumps = fem.form(
-                L_jumps, jit_options=jit_options, form_compiler_options=form_compiler_options
-            )
+        lmbda = ufl.TrialFunction(self.lm_space)
+        mu = ufl.TestFunction(self.lm_space)
 
         # Pressure
         p = ufl.TrialFunction(self._pressure_space)
@@ -255,9 +223,6 @@ class Assembler:
         P1_e = fem.functionspace(network_mesh.mesh, ("Lagrange", 1))
         p_bc = fem.Function(P1_e)
         p_bc.interpolate(p_bc_ex.eval)
-        import time
-
-        start = time.perf_counter()
         for i, (submesh, entity_map, facet_marker) in enumerate(
             zip(
                 network_mesh.submeshes,
@@ -294,47 +259,42 @@ class Assembler:
                 form_compiler_options=form_compiler_options,
                 entity_maps=[entity_map],
             )
-        end = time.perf_counter()
-        print(f"Traditional {end - start}")
-        start2 = time.perf_counter()
-        if self.cfg.lm_space:
-            # Multiplier mesh and flux share common parent mesh.
-            # We create unique integration entities for each in and out branch
-            # with a common ufl Measure
-            # Map (bifurcation, edge) to local integration measure index
+        # Multiplier mesh and flux share common parent mesh.
+        # We create unique integration entities for each in and out branch
+        # with a common ufl Measure
+        # Map (bifurcation, edge) to local integration measure index
 
-            for edge in range(self._network_mesh._num_edge_colors):
-                self.a[edge][-1] = ufl.ZeroBaseForm((lmbda, vs[edge]))
-                self.a[-1][edge] = ufl.ZeroBaseForm((mu, qs[edge]))
+        for edge in range(self._network_mesh._num_edge_colors):
+            self.a[edge][-1] = ufl.ZeroBaseForm((lmbda, vs[edge]))
+            self.a[-1][edge] = ufl.ZeroBaseForm((mu, qs[edge]))
 
-            ds = ufl.Measure(
-                "ds", domain=self._network_mesh.mesh, subdomain_data=self._integration_data
+        ds = ufl.Measure(
+            "ds", domain=self._network_mesh.mesh, subdomain_data=self._integration_data
+        )
+        for color in self._in_keys:
+            self.a[-1][color] += mu * qs[color] * ds(self._in_idx + color)
+            self.a[color][-1] += lmbda * vs[color] * ds(self._in_idx + color)
+
+        for color in self._out_keys:
+            self.a[-1][color] -= mu * qs[color] * ds(self._out_idx + color)
+            self.a[color][-1] -= lmbda * vs[color] * ds(self._out_idx + color)
+
+        self.L[-1] = fem.form(ufl.ZeroBaseForm((mu,)))
+        entity_maps = [self._network_mesh.lm_map, *self._network_mesh.entity_maps]
+        for i in range(self._network_mesh._num_edge_colors):
+            self.a[i][-1] = fem.form(
+                self.a[i][-1],
+                entity_maps=entity_maps,
+                jit_options=jit_options,
+                form_compiler_options=form_compiler_options,
             )
-            for color in self._in_keys:
-                self.a[-1][color] += mu * qs[color] * ds(self._in_idx + color)
-                self.a[color][-1] += lmbda * vs[color] * ds(self._in_idx + color)
-
-            for color in self._out_keys:
-                self.a[-1][color] -= mu * qs[color] * ds(self._out_idx + color)
-                self.a[color][-1] -= lmbda * vs[color] * ds(self._out_idx + color)
-
-            self.L[-1] = fem.form(ufl.ZeroBaseForm((mu,)))
-            entity_maps = [self._network_mesh.lm_map, *self._network_mesh.entity_maps]
-            for i in range(self._network_mesh._num_edge_colors):
-                self.a[i][-1] = fem.form(
-                    self.a[i][-1],
-                    entity_maps=entity_maps,
-                    jit_options=jit_options,
-                    form_compiler_options=form_compiler_options,
-                )
-                self.a[-1][i] = fem.form(
-                    self.a[-1][i],
-                    entity_maps=entity_maps,
-                    jit_options=jit_options,
-                    form_compiler_options=form_compiler_options,
-                )
-        end2 = time.perf_counter()
-        print(f"LM: {end2 - start2}")
+            self.a[-1][i] = fem.form(
+                self.a[-1][i],
+                entity_maps=entity_maps,
+                jit_options=jit_options,
+                form_compiler_options=form_compiler_options,
+            )
+   
         # Add zero to uninitialized diagonal blocks (needed by petsc)
         self.a[num_qs][num_qs] = fem.form(
             ufl.ZeroBaseForm((p, phi)),
@@ -377,76 +337,14 @@ class Assembler:
         """
         if A is None:
             A = fem.petsc.create_matrix(self.a)
-
         A = fem.petsc.assemble_matrix(A, self.a)
         A.assemble()
-        print(A.norm(0), A.norm(2))
         if b is None:
             b = fem.petsc.create_vector(fem.extract_function_spaces(self.L))
         b = fem.petsc.assemble_vector(self.L)
         b.ghostUpdate(addv=PETSc.InsertMode.ADD, mode=PETSc.ScatterMode.REVERSE)
-        print(b.norm(0), b.norm(1), b.norm(2))
-        if self.cfg.lm_space:
-            return (A, b)
-        else:
-            if self._network_mesh.mesh.comm.size > 1:
-                raise RuntimeError("Assembly with jump conditions only implemented for serial runs")
-            if self._network_mesh.cfg.graph_coloring:
-                raise RuntimeError("Graph coloring not implemented for manual adding of vector")
-            _A_size = A.getSize()
-            _b_size = b.getSize()
-
-            _A_values = A.getValues(range(_A_size[0]), range(_A_size[1]))
-            _b_values = b.getValues(range(_b_size))
-
-            # Build new system to include Lagrange multipliers for the bifurcation conditions
-            num_bifs = len(self._network_mesh.bifurcation_values)
-            A_ = PETSc.Mat().create()
-            A_.setSizes(list(map(add, _A_size, (num_bifs, num_bifs))))
-            A_.setUp()
-
-            b_ = PETSc.Vec().create()
-            b_.setSizes(_b_size + num_bifs)
-            b_.setUp()
-
-            # Copy _A and _b values into (bigger) system
-            A_.setValuesBlocked(range(_A_size[0]), range(_A_size[1]), _A_values)
-            b_.setValuesBlocked(range(_b_size), _b_values)
-
-            # Assemble jump vectors and convert to PETSc.Mat() object
-            self.jump_vectors = [[fem.petsc.assemble_vector(L) for L in qi] for qi in self.L_jumps]
-            jump_vecs = [
-                [petsc_utils.convert_vec_to_petscmatrix(b_row) for b_row in qi]
-                for qi in self.jump_vectors
-            ]
-
-            # Insert jump vectors into A_new
-            for i in range(0, num_bifs):
-                for j in range(0, self._network_mesh._num_edge_colors):
-                    jump_vec = jump_vecs[j][i]
-                    jump_vec_values = jump_vec.getValues(
-                        range(jump_vec.getSize()[0]), range(jump_vec.getSize()[1])
-                    )[0]
-                    A_.setValuesBlocked(
-                        _A_size[0] + i,
-                        range(jump_vec.getSize()[1] * j, jump_vec.getSize()[1] * (j + 1)),
-                        jump_vec_values,
-                    )
-                    jump_vec.transpose()
-                    jump_vec_T_values = jump_vec.getValues(
-                        range(jump_vec.getSize()[0]), range(jump_vec.getSize()[1])
-                    )
-                    A_.setValuesBlocked(
-                        range(jump_vec.getSize()[0] * j, jump_vec.getSize()[0] * (j + 1)),
-                        _A_size[1] + i,
-                        jump_vec_T_values,
-                    )
-
-            # Assembling A and b
-            A_.assemble()
-            b_.assemble()
-
-            return (A_, b_)
+        return (A, b)
+      
 
     def bilinear_forms(self):
         if self.a is None:

@@ -11,13 +11,9 @@ import networkx as ntx
 
 cfg = Config()
 cfg.export = True
-cfg.lm_space = True
 cfg.graph_coloring = True
 cfg.color_strategy = ntx.coloring.strategy_largest_first
-if cfg.lm_space:
-    cfg.outdir = "demo_arterial_tree_lm"
-else:
-    cfg.outdir = "demo_arterial_tree"
+cfg.outdir = "demo_arterial_tree"
 cfg.flux_degree = 1
 cfg.pressure_degree = 0
 
@@ -37,7 +33,7 @@ cfg.clean = False
 p = Path(cfg.outdir)
 p.mkdir(exist_ok=True)
 
-n = 8
+n = 5
 
 G = arterial_tree.make_arterial_tree(
     N=n,

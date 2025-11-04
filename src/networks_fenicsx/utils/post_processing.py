@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from networks_fenicsx.mesh import mesh
-from networks_fenicsx import config
 
 
 def export(

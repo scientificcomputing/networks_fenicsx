@@ -7,11 +7,12 @@ You can freely redistribute it and/or modify it under the terms of the GNU Gener
 Modified by Cécile Daversin-Catty - 2023
 """
 
+from mpi4py import MPI
+
 from time import perf_counter
 from pathlib import Path
 from functools import wraps
 from typing import Dict, List
-from mpi4py import MPI
 
 from networks_fenicsx import config
 
@@ -83,7 +84,6 @@ def timing_table(config: config.Config):
         import pandas as pd
 
         if MPI.COMM_WORLD.rank == 0:
-            print(t_dict)
             df = pd.DataFrame(
                 {
                     "n": t_dict["n"],
@@ -92,18 +92,11 @@ def timing_table(config: config.Config):
                     "solve": t_dict["solve"],
                 }
             )
-
-            if config.lm_space:
-                df.to_csv(config.outdir / "timings_lm_space.txt", sep="\t", index=False)
-            else:
-                df.to_csv(config.outdir / "timings_jump_vectors.txt", sep="\t", index=False)
+            df.to_csv(config.outdir / "timings.txt", sep="\t", index=False)
+        
     except ModuleNotFoundError:
         raise ModuleNotFoundError("Pandas is required to create timing tables.")
-        # if config.lm_space:
-        #     file = open(config.outdir + '/timings_lm_space.txt', 'w')
-        # else:
-        #     file = open(config.outdir + '/timings_jump_vectors.txt', 'w')
-
+        # file = open(config.outdir + '/timings.txt', 'w')
         # file.write("No timing information available.")
         # file.close()
 

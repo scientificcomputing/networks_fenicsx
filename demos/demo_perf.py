@@ -17,12 +17,7 @@ cfg.flux_degree = 1
 cfg.pressure_degree = 0
 cfg.graph_coloring = True
 cfg.color_strategy = "smallest_last"
-cfg.lm_space = True
-
-if cfg.lm_space:
-    cfg.outdir = "demo_perf_lm_space"
-else:
-    cfg.outdir = "demo_perf"
+cfg.outdir = "demo_perf"
 
 
 class p_bc_expr:

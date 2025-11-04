@@ -15,14 +15,9 @@ cfg = Config()
 cfg.outdir = "demo_tree"
 cfg.export = True
 cfg.clean = False
-cfg.lm_space = True
 cfg.flux_degree = 1
 cfg.pressure_degree = 0
-
-if cfg.lm_space:
-    cfg.outdir = "demo_tree_lm"
-else:
-    cfg.outdir = "demo_tree"
+cfg.outdir = "demo_tree"
 
 
 class p_bc_expr:
