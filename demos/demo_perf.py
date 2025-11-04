@@ -41,20 +41,22 @@ cache_dir = cfg.outdir / f".cache"
 if cache_dir.exists():
     shutil.rmtree(cache_dir, ignore_errors=True)
 
-jit_options = {"cache_dir": cache_dir}
-ns = [20]
+cffi_options = ["-Ofast", "-march=native"]
+jit_options = {"cache_dir": cache_dir, "cffi_extra_compile_args": cffi_options}
+ns = [3, 6, 12, 24]
 for n in ns:
     if MPI.COMM_WORLD.rank == 0:
         with (cfg.outdir / "profiling.txt").open("a") as f:
             f.write("n: " + str(n) + "\n")
 
     # Create tree
-    start = time.perf_counter()
-    G = mesh_generation.make_tree(n=n, H=n, W=n)
-    end = time.perf_counter()
-    print(f"NETWORKx time: {end - start}")
+    if MPI.COMM_WORLD.rank == 0:
+        G = mesh_generation.make_tree(n=n, H=n, W=n)
+    else:
+        G = None
     start2 = time.perf_counter()
     network_mesh = NetworkMesh(G, cfg)
+    del G
     network_mesh.export_tangent()
 
     for i in range(network_mesh._num_edge_colors):

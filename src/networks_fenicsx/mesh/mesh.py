@@ -25,18 +25,17 @@ __all__ = ["NetworkMesh", "compute_tangent"]
 
 def color_graph(
     graph: nx.DiGraph, use_coloring: bool, strategy: str
-) -> tuple[dict[int:int], dict[tuple[int, int], int]]:
+) -> dict[tuple[int, int], int]:
     """
-    Color the nodes and edges of a graph.
+    Color the edges of a graph.
     """
     if use_coloring:
         undirected_edge_graph = nx.line_graph(graph.to_undirected())
         edge_coloring = nx.coloring.greedy_color(undirected_edge_graph, strategy=strategy)
-        node_coloring = nx.coloring.greedy_color(graph.to_undirected(), strategy=strategy)
     else:
         edge_coloring = {edge: i for i, edge in enumerate(graph.edges)}
-        node_coloring = {i: i for i in range(graph.number_of_nodes())}
-    return node_coloring, edge_coloring
+    return edge_coloring
+
 
 
 class NetworkMesh:
@@ -69,10 +68,10 @@ class NetworkMesh:
     _lm_mesh: mesh.Mesh | None
     _lm_map: mesh.EntityMap | None
 
-    def __init__(self, graph: nx.DiGraph, config: config.Config):
+    def __init__(self, graph: nx.DiGraph, config: config.Config, comm: MPI.Comm = MPI.COMM_WORLD, graph_rank: int = 0):
         self._cfg = config
         self._cfg.clean_dir()
-        self._build_mesh(graph)
+        self._build_mesh(graph, comm=comm, graph_rank=graph_rank)
         self._build_network_submeshes()
         self._tangent = compute_tangent(self.mesh)
         self._create_lm_submesh()
@@ -111,12 +110,9 @@ class NetworkMesh:
             bifurcation_indices,
         )[:2]
 
-    @timeit
-    def _color_graph(self, graph: nx.DiGraph) -> tuple[dict[int, int], dict[tuple[int, int], int]]:
-        return color_graph(graph, self.cfg.graph_coloring, self.cfg.color_strategy)
 
     @timeit
-    def _build_mesh(self, graph: nx.DiGraph):
+    def _build_mesh(self, graph: nx.DiGraph| None, comm: MPI.Comm=MPI.COMM_WORLD, graph_rank: int = 0):
         """Convert the networkx graph into a {py:class}`dolfinx.mesh.Mesh`.
 
         The element size is controlled by `self.cfg.lcar`.
@@ -126,55 +122,82 @@ class NetworkMesh:
         Note:
             This function attaches data to `self.mesh`, `self.subdomains` and
             `self.boundaries`.
+
+        Args:
+            graph: The networkx graph to convert.
+            comm: The MPI communicator to distribute the mesh on.
+            graph_rank: The MPI rank of the process that holds the graph.
         """
+        # Extract geometric dimension from graph
+        geom_dim = None
+        num_edge_colors = None
+        max_connections = None
+        bifurcation_values = None
+        boundary_values = None
+        number_of_nodes = None
+        bifurcation_in_color = None
+        bifurcation_out_color = None
+        if comm.rank == graph_rank:
+            geom_dim = len(graph.nodes[1]["pos"])
+            edge_coloring =  color_graph(graph, self.cfg.graph_coloring, self.cfg.color_strategy)
 
-        # Extract all the data required form the graph
-        self._geom_dim = len(graph.nodes[1]["pos"])
+            num_edge_colors = len(set(edge_coloring.values()))
+            cells_array = np.asarray([[u, v] for u, v in graph.edges()])
+            number_of_nodes = graph.number_of_nodes()
+            nodes_with_degree = np.full(number_of_nodes, -1, dtype=np.int32)
+            for node, degree in graph.degree():
+                nodes_with_degree[node] = degree
+            bifurcation_values = np.flatnonzero(nodes_with_degree > 1)
+            boundary_values = np.flatnonzero(nodes_with_degree == 1)
+            max_connections = np.max(nodes_with_degree)
 
-        vertex_coords = np.asarray([graph.nodes[v]["pos"] for v in graph.nodes()])
-        cells_array = np.asarray([[u, v] for u, v in graph.edges()])
+            bifurcation_in_color = {}
+            bifurcation_out_color = {}
+            for bifurcation in bifurcation_values:
+                in_edges = graph.in_edges(bifurcation)
+                bifurcation_in_color[int(bifurcation)] = []
+                for edge in in_edges:
+                    bifurcation_in_color[int(bifurcation)].append(edge_coloring[edge])
+                out_edges = graph.out_edges(bifurcation)
+                bifurcation_out_color[int(bifurcation)] = []
+                for edge in out_edges:
+                    bifurcation_out_color[int(bifurcation)].append(edge_coloring[edge])
 
-        line_weights = np.linspace(0, 1, int(np.ceil(1 / self.cfg.lcar)), endpoint=False)[1:][
-            :, None
-        ]
+            # Map boundary_values to inlet and outlet data from graph
+            boundary_in_nodes = []
+            boundary_out_nodes = []
+            for boundary in boundary_values:
+                in_edges = graph.in_edges(boundary)
+                out_edges = graph.out_edges(boundary)
+                assert len(in_edges) + len(out_edges) == 1, "Boundary node with multiple edges"
+                if len(in_edges) == 1:
+                    boundary_in_nodes.append(int(boundary))
+                else:
+                    boundary_out_nodes.append(int(boundary))
 
-        graph_nodes, num_connections = np.unique(cells_array.flatten(), return_counts=True)
+        comm.bcast(num_edge_colors, root=graph_rank)
+        num_edge_colors, number_of_nodes, max_connections, geom_dim = comm.bcast((num_edge_colors, number_of_nodes, max_connections, geom_dim), root=graph_rank)
+        comm.barrier()
+        bifurcation_values, boundary_values = comm.bcast((bifurcation_values, boundary_values), root=graph_rank)
+        comm.barrier()
+        bifurcation_in_color, bifurcation_out_color = comm.bcast((bifurcation_in_color, bifurcation_out_color), root=graph_rank)
+        comm.barrier()
 
-        node_coloring, edge_coloring = self._color_graph(graph)
-
-        self._num_edge_colors = len(set(edge_coloring.values()))
-        self._bifurcation_values = np.flatnonzero(num_connections > 1)
-        self._boundary_values = np.flatnonzero(num_connections == 1)
-
-        self._bifurcation_colors = [node_coloring[bi] for bi in self._bifurcation_values]
+        self._geom_dim = geom_dim
+        self._num_edge_colors = num_edge_colors
+        self._bifurcation_values = bifurcation_values
+        self._boundary_values = boundary_values
 
         # Create lookup of in and out colors for each bifurcation
-        self._bifurcation_in_color = {}
-        self._bifurcation_out_color = {}
-        for bifurcation in self._bifurcation_values:
-            in_edges = graph.in_edges(bifurcation)
-            self._bifurcation_in_color[int(bifurcation)] = []
-            for edge in in_edges:
-                self._bifurcation_in_color[int(bifurcation)].append(edge_coloring[edge])
-            out_edges = graph.out_edges(bifurcation)
-            self._bifurcation_out_color[int(bifurcation)] = []
-            for edge in out_edges:
-                self._bifurcation_out_color[int(bifurcation)].append(edge_coloring[edge])
-
-        # Map boundary_values to inlet and outlet data from graph
-        boundary_in_nodes = []
-        boundary_out_nodes = []
-        for boundary in self._boundary_values:
-            in_edges = graph.in_edges(boundary)
-            out_edges = graph.out_edges(boundary)
-            assert len(in_edges) + len(out_edges) == 1, "Boundary node with multiple edges"
-            if len(in_edges) == 1:
-                boundary_in_nodes.append(int(boundary))
-            else:
-                boundary_out_nodes.append(int(boundary))
+        self._bifurcation_in_color = bifurcation_in_color
+        self._bifurcation_out_color = bifurcation_out_color
 
         # Generate mesh
-        if MPI.COMM_WORLD.rank == 0:
+        if comm.rank == graph_rank:
+            vertex_coords = np.asarray([graph.nodes[v]["pos"] for v in graph.nodes()])
+            line_weights = np.linspace(0, 1, int(np.ceil(1 / self.cfg.lcar)), endpoint=False)[1:][
+                :, None
+            ]
             mesh_nodes = vertex_coords.copy()
             cells = []
             cell_markers = []
@@ -220,14 +243,15 @@ class NetworkMesh:
 
         partitioner = mesh.create_cell_partitioner(mesh.GhostMode.shared_facet)
         graph_mesh = mesh.create_mesh(
-            MPI.COMM_WORLD,
+            comm,
             x=mesh_nodes,
             cells=cells,
             e=ufl.Mesh(basix.ufl.element("Lagrange", "interval", 1, shape=(self._geom_dim,))),
             partitioner=partitioner,
-            max_facet_to_cell_links=np.max(num_connections),
+            max_facet_to_cell_links=np.max(max_connections),
         )
         self._msh = graph_mesh
+
         local_entities, local_values = _io.distribute_entity_data(
             self.mesh,
             self.mesh.topology.dim,
@@ -240,11 +264,11 @@ class NetworkMesh:
             _graph.adjacencylist(local_entities),
             local_values,
         )
-        self._in_marker = 3 * graph.number_of_nodes()
-        self._out_marker = 5 * graph.number_of_nodes()
-        if MPI.COMM_WORLD.rank == 0:
-            lv = graph_nodes.astype(np.int64).reshape((-1, 1))
-            lvv = np.arange(len(graph_nodes), dtype=np.int32)
+        self._in_marker = 3 * number_of_nodes
+        self._out_marker = 5 * number_of_nodes
+        if comm.rank == graph_rank:
+            lv = np.arange(number_of_nodes, dtype=np.int64).reshape(-1, 1)
+            lvv = np.arange(number_of_nodes, dtype=np.int32)
             lvv[boundary_in_nodes] = self._in_marker
             lvv[boundary_out_nodes] = self._out_marker
         else:
