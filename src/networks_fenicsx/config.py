@@ -14,6 +14,7 @@ class Config:
     export: bool = False
     clean: bool = True
     graph_coloring: bool = False
+    color_strategy: str = "largest_first"
 
     def __post_init__(self):
         if self.graph_coloring and not self.lm_space:

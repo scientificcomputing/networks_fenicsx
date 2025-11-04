@@ -15,6 +15,7 @@ from networks_fenicsx.utils.timers import timeit
 from networks_fenicsx import config
 import dolfinx.fem.petsc
 
+
 class Solver:
     def __init__(
         self,
@@ -41,6 +42,11 @@ class Solver:
         self.ksp.setType("preonly")
         self.ksp.getPC().setType("lu")
         self.ksp.getPC().setFactorSolverType("mumps")
+        self.ksp.setTolerances(atol=1e-16, rtol=1e-16)
+        self.ksp.setMonitor(
+            lambda _, its, rnorm: print(f"Iteration: {its}, rel. residual: {rnorm}")
+        )
+
         self.ksp.setErrorIfNotConverged(True)
 
         # Solve

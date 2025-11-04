@@ -24,15 +24,15 @@ __all__ = ["NetworkMesh", "compute_tangent"]
 
 
 def color_graph(
-    graph: nx.DiGraph, use_coloring: bool
+    graph: nx.DiGraph, use_coloring: bool, strategy: str
 ) -> tuple[dict[int:int], dict[tuple[int, int], int]]:
     """
     Color the nodes and edges of a graph.
     """
     if use_coloring:
         undirected_edge_graph = nx.line_graph(graph.to_undirected())
-        edge_coloring = nx.coloring.greedy_color(undirected_edge_graph)
-        node_coloring = nx.coloring.greedy_color(graph.to_undirected())
+        edge_coloring = nx.coloring.greedy_color(undirected_edge_graph, strategy=strategy)
+        node_coloring = nx.coloring.greedy_color(graph.to_undirected(), strategy=strategy)
     else:
         edge_coloring = {edge: i for i, edge in enumerate(graph.edges)}
         node_coloring = {i: i for i in range(graph.number_of_nodes())}
@@ -113,7 +113,7 @@ class NetworkMesh:
 
     @timeit
     def _color_graph(self, graph: nx.DiGraph) -> tuple[dict[int, int], dict[tuple[int, int], int]]:
-        return color_graph(graph, self.cfg.graph_coloring)
+        return color_graph(graph, self.cfg.graph_coloring, self.cfg.color_strategy)
 
     @timeit
     def _build_mesh(self, graph: nx.DiGraph):
@@ -240,9 +240,8 @@ class NetworkMesh:
             _graph.adjacencylist(local_entities),
             local_values,
         )
-
-        self._in_marker = 83
-        self._out_marker = 72
+        self._in_marker = 3 * graph.number_of_nodes()
+        self._out_marker = 5 * graph.number_of_nodes()
         if MPI.COMM_WORLD.rank == 0:
             lv = graph_nodes.astype(np.int64).reshape((-1, 1))
             lvv = np.arange(len(graph_nodes), dtype=np.int32)
@@ -290,12 +289,15 @@ class NetworkMesh:
         parent_vertex_marker = np.full(num_vertices_parent, -1, dtype=np.int32)
         parent_vertex_marker[self._facet_markers.indices] = self._facet_markers.values
         for i in range(self._num_edge_colors):
+            # Create submesh of color i
             edge_subdomain = self.subdomains.indices[self.subdomains.values == i]
             edge_mesh, edge_map, vertex_map = mesh.create_submesh(
                 self.mesh, self.mesh.topology.dim, edge_subdomain
             )[0:3]
             self._edge_meshes.append(edge_mesh)
             self._edge_entity_maps.append(edge_map)
+
+            # Map all submesh vertices to parent
             num_submesh_vertices = (
                 edge_mesh.topology.index_map(0).size_local
                 + edge_mesh.topology.index_map(0).num_ghosts
@@ -305,7 +307,7 @@ class NetworkMesh:
             )
             sub_topology_values = parent_vertex_marker[parent_vertices]
             marked_vertices = np.flatnonzero(sub_topology_values >= 0)
-            marked_values = sub_topology_values[sub_topology_values >= 0]
+            marked_values = sub_topology_values[marked_vertices].copy()
             self._submesh_facet_markers.append(
                 mesh.meshtags(edge_mesh, 0, marked_vertices, marked_values)
             )
@@ -356,7 +358,7 @@ class NetworkMesh:
 
     def export_tangent(self):
         if self.cfg.export:
-            with _io.XDMFFile(self.comm, self.cfg.outdir + "/mesh/tangent.xdmf", "w") as file:
+            with _io.XDMFFile(self.comm, self.cfg.outdir / "mesh/tangent.xdmf", "w") as file:
                 file.write_mesh(self.mesh)
                 file.write_function(self.tangent)
         else:
@@ -401,6 +403,8 @@ def compute_tangent(domain: mesh.Mesh) -> fem.Function:
     assert np.all(np.linalg.norm(tangent, axis=1) > 0), "Zero-length tangent vector detected"
     gdim = domain.geometry.dim
     DG0 = fem.functionspace(domain, ("DG", 0, (gdim,)))
+    tangent_norm = np.linalg.norm(tangent, axis=1)
+    tangent /= tangent_norm[:, None]
     global_tangent = fem.Function(DG0)
     global_tangent.x.array[:] = tangent.flatten()
     return global_tangent

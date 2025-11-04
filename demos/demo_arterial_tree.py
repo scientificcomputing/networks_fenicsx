@@ -11,7 +11,7 @@ from networks_fenicsx.utils.post_processing import export  # , perf_plot
 cfg = Config()
 cfg.export = True
 cfg.lm_space = True
-cfg.graph_coloring = True
+cfg.graph_coloring = False
 if cfg.lm_space:
     cfg.outdir = "demo_arterial_tree_lm"
 else:
@@ -22,7 +22,7 @@ cfg.pressure_degree = 0
 
 class p_bc_expr:
     def eval(self, x):
-        return np.full(x.shape[1], x[1])
+        return x[1]
 
 
 # One element per segment
@@ -35,9 +35,12 @@ cfg.clean = False
 p = Path(cfg.outdir)
 p.mkdir(exist_ok=True)
 
-n = 4
+n = 8
 
-G = arterial_tree.make_arterial_tree(N=n, directions=[1, 1, 1, 1, 1, 1, 1, 1])
+G = arterial_tree.make_arterial_tree(
+    N=n,
+    directions=[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+)
 
 
 network_mesh = NetworkMesh(G, cfg)

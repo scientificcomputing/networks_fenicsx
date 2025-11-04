@@ -70,7 +70,6 @@ def compute_integration_data(
             influx_color_to_bifurcations[color].append(int(bifurcation))
         for color in network_mesh.out_edges(bifurcation):
             outflux_color_to_bifurcations[color].append(int(bifurcation))
-
     # Accumulate integration data for all in-edges on the same submesh.
     in_flux_entities: dict[int, npt.NDArray[np.int32]] = {}
     out_flux_entities: dict[int, npt.NDArray[np.int32]] = {}
@@ -86,10 +85,10 @@ def compute_integration_data(
             sm.topology,
             smfm.indices[np.isin(smfm.values, influx_color_to_bifurcations[color])],
         ).reshape(-1, 2)
-        parent_to_sub = network_mesh.entity_maps[color].sub_topology_to_topology(
+        parent_to_sub_influx = network_mesh.entity_maps[color].sub_topology_to_topology(
             submesh_influx_entities[:, 0].copy(), inverse=False
         )
-        submesh_influx_entities[:, 0] = parent_to_sub
+        submesh_influx_entities[:, 0] = parent_to_sub_influx
         in_flux_entities[color] = submesh_influx_entities.flatten()
 
         # Compute influx entities
@@ -98,10 +97,10 @@ def compute_integration_data(
             sm.topology,
             smfm.indices[np.isin(smfm.values, outflux_color_to_bifurcations[color])],
         ).reshape(-1, 2)
-        parent_to_sub = network_mesh.entity_maps[color].sub_topology_to_topology(
+        parent_to_sub_outflux = network_mesh.entity_maps[color].sub_topology_to_topology(
             submesh_outflux_entities[:, 0].copy(), inverse=False
         )
-        submesh_outflux_entities[:, 0] = parent_to_sub
+        submesh_outflux_entities[:, 0] = parent_to_sub_outflux
         out_flux_entities[color] = submesh_outflux_entities.flatten()
     return in_flux_entities, out_flux_entities
 
@@ -154,14 +153,14 @@ class Assembler:
         self._lm_space = fem.functionspace(self._network_mesh.lm_mesh, ("DG", 0))
 
         # Initialize forms
-        num_qs = len(self._network_mesh.submeshes)
+        num_qs = self._network_mesh._num_edge_colors
         num_blocks = num_qs + int(self.cfg.lm_space) + 1
         self.a = [[None] * num_blocks for _ in range(num_blocks)]
         self.L = [None] * num_blocks
 
         # Compute integration data for network mesh
         self._integration_data = []
-        self._in_idx = 212
+        self._in_idx = max(mesh.in_marker, mesh.out_marker) + 1
         in_flux_entities, out_flux_entities = compute_integration_data(self._network_mesh)
         self._in_keys = tuple(in_flux_entities.keys())
         self._out_keys = tuple(out_flux_entities.keys())
@@ -381,17 +380,19 @@ class Assembler:
 
         A = fem.petsc.assemble_matrix(A, self.a)
         A.assemble()
-
+        print(A.norm(0), A.norm(2))
         if b is None:
             b = fem.petsc.create_vector(fem.extract_function_spaces(self.L))
         b = fem.petsc.assemble_vector(self.L)
         b.ghostUpdate(addv=PETSc.InsertMode.ADD, mode=PETSc.ScatterMode.REVERSE)
-
+        print(b.norm(0), b.norm(1), b.norm(2))
         if self.cfg.lm_space:
             return (A, b)
         else:
             if self._network_mesh.mesh.comm.size > 1:
                 raise RuntimeError("Assembly with jump conditions only implemented for serial runs")
+            if self._network_mesh.cfg.graph_coloring:
+                raise RuntimeError("Graph coloring not implemented for manual adding of vector")
             _A_size = A.getSize()
             _b_size = b.getSize()
 
