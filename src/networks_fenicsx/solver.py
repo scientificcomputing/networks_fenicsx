@@ -3,7 +3,6 @@
 """Solver interface for graphs."""
 
 import typing
-from pathlib import Path
 
 from petsc4py import PETSc
 
@@ -24,12 +23,11 @@ class Solver:
         kind: Kind of PETSc matrix and vectors to create.
     """
 
-    _ksp: PETSc.KSP | None = None
-    _A: PETSc.Mat | None = None
-    _b: PETSc.Vec | None = None
-    _x: PETSc.Vec | None = None
+    _ksp: PETSc.KSP | None = None  # type: ignore[name-defined]
+    _A: PETSc.Mat | None = None  # type: ignore[name-defined]
+    _b: PETSc.Vec | None = None  # type: ignore[name-defined]
+    _x: PETSc.Vec | None = None  # type: ignore[name-defined]
     _assembler: assembly.HydraulicNetworkAssembler
-    _timing_dir: str | Path = None
 
     def __init__(
         self,
@@ -40,14 +38,15 @@ class Solver:
     ):
         self._assembler = assembler
 
-        self._ksp = PETSc.KSP().create(self._assembler.network.comm)
+        self._ksp = PETSc.KSP().create(self._assembler.network.comm)  # type: ignore[attr-defined]
 
         self.cfg = config
         self._A = dolfinx.fem.petsc.create_matrix(self._assembler.bilinear_forms, kind=kind)
+        kind = "nest" if self._A.getType() == "nest" else kind  # type: ignore[attr-defined]
+        assert isinstance(kind, str) or kind is None
         self._b = dolfinx.fem.petsc.create_vector(
             dolfinx.fem.extract_function_spaces(self._assembler.linear_forms), kind=kind
         )
-        kind = "nest" if self._A.getType() == "nest" else kind  # type: ignore[attr-defined]
         self._x = dolfinx.fem.petsc.create_vector(self._assembler.function_spaces, kind)
 
         self.ksp.setOperators(self.A)
@@ -65,7 +64,7 @@ class Solver:
                 "ksp_monitor": None,
                 "ksp_error_if_not_converged": True,
             }
-        opts = PETSc.Options()
+        opts = PETSc.Options()  # type: ignore[attr-defined]
         opts.prefixPush(self.ksp.getOptionsPrefix())
         for key, value in petsc_options.items():
             opts[key] = value
@@ -75,28 +74,17 @@ class Solver:
         opts.prefixPop()
 
     @property
-    def timing_dir(self) -> str | Path:
-        """The directory for timing information."""
-        if self._timing_dir is None:
-            raise RuntimeError("Timing directory has not been set.")
-        return self._timing_dir
-
-    @timing_dir.setter
-    def timing_dir(self, value: str | Path):
-        self._timing_dir = Path(value)
-
-    @property
     def assembler(self) -> assembly.HydraulicNetworkAssembler:
         """The hydraulic network assembler."""
         return self._assembler
 
     @property
-    def A(self) -> PETSc.Mat:
+    def A(self) -> PETSc.Mat:  # type: ignore[name-defined]
         """System matrix."""
         return self._A
 
     @property
-    def b(self) -> PETSc.Vec:
+    def b(self) -> PETSc.Vec:  # type: ignore[name-defined]
         """Right-hand side vector."""
         return self._b
 
@@ -107,12 +95,14 @@ class Solver:
             lhs: Whether to assemble the system matrix.
             rhs: Whether to assemble the rhs vector.
         """
-        self._A.zeroEntries()
-        dolfinx.la.petsc._zero_vector(self._b)
+        if self._A is not None and lhs:
+            self._A.zeroEntries()
+        if self._b is not None and rhs:
+            dolfinx.la.petsc._zero_vector(self._b)
         self.assembler.assemble(self._A, self._b, assemble_lhs=lhs, assemble_rhs=rhs)
 
     @property
-    def ksp(self) -> PETSc.KSP:
+    def ksp(self) -> PETSc.KSP:  # type: ignore[name-defined]
         return self._ksp
 
     def solve(
@@ -136,8 +126,11 @@ class Solver:
 
         self.ksp.solve(self.b, self._x)
         dolfinx.la.petsc._ghost_update(
-            self._x, insert_mode=PETSc.InsertMode.INSERT, scatter_mode=PETSc.ScatterMode.FORWARD
+            self._x,
+            insert_mode=PETSc.InsertMode.INSERT,  # type: ignore[attr-defined]
+            scatter_mode=PETSc.ScatterMode.FORWARD,  # type: ignore[attr-defined]
         )
+        assert isinstance(self._x, PETSc.Vec)  # type: ignore[attr-defined]
         dolfinx.fem.petsc.assign(self._x, functions)
         return functions
 

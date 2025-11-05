@@ -23,7 +23,7 @@ __all__ = ["HydraulicNetworkAssembler", "PressureFunction"]
 
 
 class PressureFunction(Protocol):
-    def eval(x: npt.NDArray[np.floating]) -> npt.NDArray[np.inexact]: ...
+    def eval(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.inexact]: ...
 
 
 def compute_integration_data(
@@ -42,10 +42,10 @@ def compute_integration_data(
     """
 
     # Pack all bifurcation in and out fluxes per colored edge in graph
-    influx_color_to_bifurcations = {
+    influx_color_to_bifurcations: dict[int, list[int]] = {
         int(color): [] for color in range(network_mesh._num_edge_colors)
     }
-    outflux_color_to_bifurcations = {
+    outflux_color_to_bifurcations: dict[int, list[int]] = {
         int(color): [] for color in range(network_mesh._num_edge_colors)
     }
     for bifurcation in network_mesh.bifurcation_values:
@@ -106,13 +106,13 @@ class HydraulicNetworkAssembler:
     _flux_spaces: list[fem.FunctionSpace]
     _pressure_space: fem.FunctionSpace
     _lm_space: fem.FunctionSpace
-    _cfg = config.Config
+    _cfg: config.Config
     _in_idx: int  # Starting point for each influx interior bifurcation integral
     _out_idx: int  # Starting point for each outflux interior bifurcation integral
-    _in_keys: tuple[int]  # Set of unique markers for all influx conditions
-    _out_keys: tuple[int]  # Set of unique markers for all outflux conditions
-    _a: list[list[fem.Form | None]]  # Bilinear forms
-    _L: list[fem.Form | None]  # Linear forms
+    _in_keys: tuple[int, ...]  # Set of unique markers for all influx conditions
+    _out_keys: tuple[int, ...]  # Set of unique markers for all outflux conditions
+    _a: list[list[fem.Form]]  # Bilinear forms
+    _L: list[fem.Form]  # Linear forms
 
     def __init__(self, config: config.Config, mesh: NetworkMesh):
         self._network_mesh = mesh
@@ -147,12 +147,6 @@ class HydraulicNetworkAssembler:
         self._flux_spaces = Pqs
         self._pressure_space = Pp
         self._lm_space = fem.functionspace(self._network_mesh.lm_mesh, ("DG", 0))
-
-        # Initialize forms
-        num_qs = self._network_mesh._num_edge_colors
-        num_blocks = num_qs + 2
-        self._a = [[None] * num_blocks for _ in range(num_blocks)]
-        self._L = [None] * num_blocks
 
         # Compute integration data for network mesh
         self._integration_data = []
@@ -193,6 +187,12 @@ class HydraulicNetworkAssembler:
            f: source term
            p_bc: neumann bc for pressure
         """
+        num_qs = self._network_mesh._num_edge_colors
+
+        test_functions = [ufl.TestFunction(fs) for fs in self.function_spaces]
+        trial_functions = [ufl.TrialFunction(fs) for fs in self.function_spaces]
+        a = [[ufl.ZeroBaseForm((ui, vj)) for vj in test_functions] for ui in trial_functions]
+        L = [ufl.ZeroBaseForm((vj,)) for vj in test_functions]
 
         if f is None:
             f = fem.Constant(self._network_mesh.mesh, 0.0)
@@ -229,78 +229,50 @@ class HydraulicNetworkAssembler:
             dx_edge = ufl.Measure("dx", domain=submesh)
             ds_edge = ufl.Measure("ds", domain=submesh, subdomain_data=facet_marker)
 
-            self._a[i][i] = fem.form(
-                qs[i] * vs[i] * dx_edge,
-                jit_options=jit_options,
-                form_compiler_options=form_compiler_options,
-            )
-            self._a[num_qs][i] = fem.form(
-                phi * ufl.dot(ufl.grad(qs[i]), tangent) * dx_edge,
-                entity_maps=[entity_map],
-                jit_options=jit_options,
-                form_compiler_options=form_compiler_options,
-            )
-            self._a[i][num_qs] = fem.form(
-                -p * ufl.dot(ufl.grad(vs[i]), tangent) * dx_edge,
-                entity_maps=[entity_map],
-                jit_options=jit_options,
-                form_compiler_options=form_compiler_options,
-            )
+            a[i][i] += qs[i] * vs[i] * dx_edge
+            a[num_qs][i] += phi * ufl.dot(ufl.grad(qs[i]), tangent) * dx_edge
+            a[i][num_qs] = -p * ufl.dot(ufl.grad(vs[i]), tangent) * dx_edge
 
             # Add all boundary contributions
-            self._L[i] = fem.form(
-                p_bc * vs[i] * ds_edge(network_mesh.in_marker)
-                - p_bc * vs[i] * ds_edge(network_mesh.out_marker),
-                jit_options=jit_options,
-                form_compiler_options=form_compiler_options,
-                entity_maps=[entity_map],
+            L[i] = p_bc * vs[i] * ds_edge(network_mesh.in_marker) - p_bc * vs[i] * ds_edge(
+                network_mesh.out_marker
             )
+
         # Multiplier mesh and flux share common parent mesh.
         # We create unique integration entities for each in and out branch
         # with a common ufl Measure
         # Map (bifurcation, edge) to local integration measure index
-
-        for edge in range(self._network_mesh._num_edge_colors):
-            self._a[edge][-1] = ufl.ZeroBaseForm((lmbda, vs[edge]))
-            self._a[-1][edge] = ufl.ZeroBaseForm((mu, qs[edge]))
-
         ds = ufl.Measure(
             "ds", domain=self._network_mesh.mesh, subdomain_data=self._integration_data
         )
         for color in self._in_keys:
-            self._a[-1][color] += mu * qs[color] * ds(self._in_idx + color)
-            self._a[color][-1] += lmbda * vs[color] * ds(self._in_idx + color)
+            a[-1][color] += mu * qs[color] * ds(self._in_idx + color)
+            a[color][-1] += lmbda * vs[color] * ds(self._in_idx + color)
 
         for color in self._out_keys:
-            self._a[-1][color] -= mu * qs[color] * ds(self._out_idx + color)
-            self._a[color][-1] -= lmbda * vs[color] * ds(self._out_idx + color)
+            a[-1][color] -= mu * qs[color] * ds(self._out_idx + color)
+            a[color][-1] -= lmbda * vs[color] * ds(self._out_idx + color)
 
-        self._L[-1] = fem.form(ufl.ZeroBaseForm((mu,)))
-        entity_maps = [self._network_mesh.lm_map, *self._network_mesh.entity_maps]
-        for i in range(self._network_mesh._num_edge_colors):
-            self._a[i][-1] = fem.form(
-                self._a[i][-1],
-                entity_maps=entity_maps,
-                jit_options=jit_options,
-                form_compiler_options=form_compiler_options,
-            )
-            self._a[-1][i] = fem.form(
-                self._a[-1][i],
-                entity_maps=entity_maps,
-                jit_options=jit_options,
-                form_compiler_options=form_compiler_options,
-            )
+        entity_maps = [entity_map, self._network_mesh.lm_map, *self._network_mesh.entity_maps]
 
-        # Add zero to uninitialized diagonal blocks (needed by petsc)
-        self._a[num_qs][num_qs] = fem.form(
-            ufl.ZeroBaseForm((p, phi)),
+        # Replace remaining ZeroBaseForm with None
+        # This is because `dolfinx.fem.forms._zero_form`
+        # assumes single domain (no entity maps)
+        for i, ai in enumerate(a):
+            for j, aij in enumerate(ai):
+                if isinstance(aij, ufl.ZeroBaseForm):
+                    a[i][j] = None
+        self._a = fem.form(
+            a,
             jit_options=jit_options,
             form_compiler_options=form_compiler_options,
+            entity_maps=entity_maps,
         )
-        self._L[num_qs] = fem.form(
-            ufl.ZeroBaseForm((phi,)),
+        self._L = fem.form(
+            L,
             jit_options=jit_options,
             form_compiler_options=form_compiler_options,
+            entity_maps=entity_maps,
         )
 
     @property
@@ -332,12 +304,12 @@ class HydraulicNetworkAssembler:
 
     def assemble(
         self,
-        A: PETSc.Mat | None = None,
-        b: PETSc.Mat | None = None,
+        A: PETSc.Mat | None = None,  # type: ignore[name-defined]
+        b: PETSc.Mat | None = None,  # type: ignore[name-defined]
         assemble_lhs: bool = True,
         assemble_rhs: bool = True,
         kind: str | typing.Sequence[typing.Sequence[str]] | None = None,
-    ) -> tuple[PETSc.Mat, PETSc.Vec]:
+    ) -> tuple[PETSc.Mat, PETSc.Vec]:  # type: ignore[name-defined]
         """Assemble system matrix and rhs vector.
 
         Note:
@@ -355,21 +327,24 @@ class HydraulicNetworkAssembler:
         """
         if assemble_lhs:
             if A is None:
-                A = fem.petsc.create_matrix(self._a, kind=kind)
-            A = fem.petsc.assemble_matrix(A, self._a, bcs=[])
+                A = fem.petsc.create_matrix([[aij for aij in ai] for ai in self._a], kind=kind)
+            A = fem.petsc.assemble_matrix(A, self._a, bcs=[])  # type: ignore
             A.assemble()
             kind = "nest" if A.getType() == PETSc.Mat.Type.NEST else kind  # type: ignore[attr-defined]
         if assemble_rhs:
             if b is None:
+                assert isinstance(kind, str) or kind is None
                 b = fem.petsc.create_vector(fem.extract_function_spaces(self._L), kind=kind)
-            b = fem.petsc.assemble_vector(b, self._L)
+            b = fem.petsc.assemble_vector(b, self._L)  # type: ignore
             _petsc_la._ghost_update(
-                b, insert_mode=PETSc.InsertMode.ADD_VALUES, scatter_mode=PETSc.ScatterMode.REVERSE
+                b,
+                insert_mode=PETSc.InsertMode.ADD_VALUES,  # type: ignore[attr-defined]
+                scatter_mode=PETSc.ScatterMode.REVERSE,  # type: ignore[attr-defined]
             )
         return (A, b)
 
     @property
-    def bilinear_forms(self) -> list[list[fem.Form]]:
+    def bilinear_forms(self) -> typing.Sequence[typing.Sequence[fem.Form]]:
         """Nested list of the compiled, bilinear forms."""
         if self._a is None:
             logging.error("Bilinear forms haven't been computed. Need to call compute_forms()")
@@ -384,7 +359,7 @@ class HydraulicNetworkAssembler:
         return a[i][j]
 
     @property
-    def linear_forms(self) -> list[fem.Form]:
+    def linear_forms(self) -> typing.Sequence[fem.Form]:
         """Extract the linear form."""
         if self._L is None:
             logging.error("Linear forms haven't been computed. Need to call compute_forms()")

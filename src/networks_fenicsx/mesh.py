@@ -271,18 +271,18 @@ class NetworkMesh:
                             dtype=np.int32,
                         )
                     )
-            cells = np.vstack(cells).astype(np.int64)
-            cell_markers = np.array(cell_markers, dtype=np.int32)
+            cells_ = np.vstack(cells).astype(np.int64)
+            cell_markers_ = np.array(cell_markers, dtype=np.int32)
         else:
-            cells = np.empty((0, 2), dtype=np.int64)
+            cells_ = np.empty((0, 2), dtype=np.int64)
             mesh_nodes = np.empty((0, self._geom_dim), dtype=np.float64)
-            cell_markers = np.empty((0,), dtype=np.int32)
+            cell_markers_ = np.empty((0,), dtype=np.int32)
 
         partitioner = mesh.create_cell_partitioner(mesh.GhostMode.shared_facet)
         graph_mesh = mesh.create_mesh(
             comm,
             x=mesh_nodes,
-            cells=cells,
+            cells=cells_,
             e=ufl.Mesh(basix.ufl.element("Lagrange", "interval", 1, shape=(self._geom_dim,))),
             partitioner=partitioner,
             max_facet_to_cell_links=np.max(max_connections),
@@ -292,8 +292,8 @@ class NetworkMesh:
         local_entities, local_values = _io.distribute_entity_data(
             self.mesh,
             self.mesh.topology.dim,
-            cells,
-            cell_markers,
+            cells_,
+            cell_markers_,
         )
         self._subdomains = mesh.meshtags_from_entities(
             self.mesh,
