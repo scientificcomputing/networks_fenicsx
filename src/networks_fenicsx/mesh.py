@@ -467,5 +467,6 @@ def compute_tangent(domain: mesh.Mesh) -> fem.Function:
     tangent_norm = np.linalg.norm(tangent, axis=1)
     tangent /= tangent_norm[:, None]
     global_tangent = fem.Function(DG0)
+    tangent = tangent[:, :gdim].copy()
     global_tangent.x.array[:] = tangent.flatten()
     return global_tangent

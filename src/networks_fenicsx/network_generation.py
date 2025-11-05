@@ -36,15 +36,17 @@ def tree_edges(n, r):
                 break
 
 
-def make_tree(n: int, H: float, W: float, dim=3):
+def make_tree(n: int, H: float, W: float, dim=3) -> nx.DiGraph:
     """
-    n : number of generations
-    H : height
-    W : width
-    """
+    Generate a symmetric tree whose root is at the origin.
 
-    # FIXME : add parameter r : branching factor of the tree (each node has r children)
-    r = 2
+    Args:
+        n : Number of generations of branches
+        H : Height of tree
+        W : Width of tree at its largest extent
+    """
+    assert n >= 1, "Number of generations must be at least 1"
+    r = 2  # FIXME : add parameter r : branching factor of the tree (each node has r children)
     G = nx.DiGraph()
 
     nb_nodes_gen = []
