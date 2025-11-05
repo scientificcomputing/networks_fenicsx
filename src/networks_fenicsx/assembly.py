@@ -1,5 +1,6 @@
-"""
-"""
+# Copyright (C) Simula Research Laboratory, Cécile Daversin-Catty, Joe P. Dean and Jørgen S. Dokken
+# SPDX-License-Identifier:    LGPL-3.0-or-later
+"""Assembly routine for Hydraulic network."""
 
 from petsc4py import PETSc
 from typing import Protocol
