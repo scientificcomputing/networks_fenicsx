@@ -1,1 +1,1 @@
-__all__ = ['mesh', 'mesh_generation']
+__all__ = ['mesh', 'network_generation']
