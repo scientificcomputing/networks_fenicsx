@@ -41,7 +41,7 @@ class NetworkMesh:
     Stores the resulting :py:class:`mesh<dolfinx.mesh.Mesh>`,
     :py:class:`subdomains<dolfinx.mesh.MeshTags>`,
     and :py:class:`facet markers<dolfinx.mesh.MeshTags>` for bifurcations and boundary nodes.
-    Has a globally oriented tangent vector field :py:meth:`tangent<NetworkMesh.tangent>`.
+    Has a globally oriented tangent vector field :py:attr:`tangent`.
     Has a :py:class:`submesh<dolfinx.mesh.Mesh>` for each edge in the
     :py:class:`Networkx graph<networkx.DiGraph>`.
     """
@@ -402,6 +402,7 @@ class NetworkMesh:
 
     @property
     def tangent(self):
+        """Return DG-0 field containing the tangent vector of the graph."""
         return self._tangent
 
     def export_tangent(self):

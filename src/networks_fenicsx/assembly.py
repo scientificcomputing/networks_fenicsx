@@ -356,10 +356,10 @@ class HydraulicNetworkAssembler:
             If neither `A` or `b` is provided, they are created inside this class.
 
         Args:
-            A: :py:class:`PETSc matrix<petsc4py.petsc.Mat>` to assemble
-                :py:meth:`HydraulicAssembler.a` into.
-            b: :py:class:`PETSc vector<petsc4py.petsc.Vec>` to assemble
-                :py:meth:`HydraulicAssembler.L` into.
+            A: :py:class:`PETSc matrix<petsc4py.PETSc.Mat>` to assemble
+                :py:attr:`HydraulicNetworkAssembler.bilinear_forms` into.
+            b: :py:class:`PETSc vector<petsc4py.PETSc.Vec>` to assemble
+                :py:attr:`HydraulicNetworkAssembler.linear_forms` into.
             assemble_lhs: Whether to assemble the system matrix.
             assemble_rhs: Whether to assemble the rhs vector.
             kind: If no matrix or vector is provided, "kind" is used to determine what
@@ -397,12 +397,14 @@ class HydraulicNetworkAssembler:
 
     @property
     def linear_forms(self) -> list[fem.Form]:
+        """Extract the linear form."""
         if self._L is None:
             logging.error("Linear forms haven't been computed. Need to call compute_forms()")
         else:
             return self._L
 
     def linear_form(self, i: int) -> fem.Form:
+        """Return the i-th block of the linear form"""
         L = self.linear_forms
         if i > len(L):
             logging.error("Linear form L[" + str(i) + "] out of range")
