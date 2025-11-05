@@ -55,7 +55,8 @@ class Solver:
         self._b.setOptionsPrefix(f"{petsc_options_prefix}b_")
 
         if petsc_options is None:
-            petsc_options = {"ksp_type": "preonly", "pc_type": "lu", "pc_factor_mat_solver_type": "mumps"}
+            petsc_options = {"ksp_type": "preonly", "pc_type": "lu", "pc_factor_mat_solver_type": "mumps",
+                             "ksp_monitor": None, "ksp_error_if_not_converged": True}
         opts = PETSc.Options()
         opts.prefixPush(self.ksp.getOptionsPrefix())
         for key, value in petsc_options.items():
