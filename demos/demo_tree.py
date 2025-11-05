@@ -1,14 +1,13 @@
+import dolfinx
 from mpi4py import MPI
 import numpy as np
 import matplotlib.pyplot as plt
 from dolfinx import fem
 import ufl
 from pathlib import Path
-from networks_fenicsx import NetworkMesh, HydraulicNetworkAssembler
-from networks_fenicsx.utils.post_processing import export
+from networks_fenicsx import Config, NetworkMesh, HydraulicNetworkAssembler, Solver
+from networks_fenicsx.post_processing import extract_global_flux, export_functions
 from networks_fenicsx.mesh import mesh_generation
-from networks_fenicsx.solver import solver
-from networks_fenicsx.config import Config
 
 
 cfg = Config()
@@ -37,21 +36,39 @@ for i in range(10):
 
     network_mesh = NetworkMesh(G, cfg)
     assembler = HydraulicNetworkAssembler(cfg, network_mesh)
-    
+
     assembler.compute_forms(p_bc_ex=p_bc_expr())
 
-    solver_ = solver.Solver(cfg, network_mesh, assembler)
-    sol = solver_.solve()
-    
-    (fluxes, global_flux, pressure) = export(network_mesh, assembler.function_spaces, sol, outpath=Path(cfg.outdir) / f"lcar_{lcar:.5e}")
+    solver = Solver(
+        assembler,
+        petsc_options={
+            "ksp_type": "preonly",
+            "pc_type": "lu",
+            "pc_factor_mat_solver_type": "mumps",
+        },
+        kind="mpi",
+    )
+    solver.timing_dir = cfg.outdir
+    solver.assemble()
+    sol = solver.solve()
+
+    global_flux = extract_global_flux(network_mesh, sol)
+    export_functions(sol, outpath=Path(cfg.outdir) / f"lcar_{lcar:.5e}")
+    with dolfinx.io.VTXWriter(
+        global_flux.function_space.mesh.comm,
+        Path(cfg.outdir) / f"lcar_{lcar:.5e}" / "global_flux.bp",
+        [global_flux],
+    ) as vtx:
+        vtx.write(0.0)
 
     max_global_flux = network_mesh.comm.allreduce(np.max(global_flux.x.array), op=MPI.MAX)
     min_global_flux = network_mesh.comm.allreduce(np.min(global_flux.x.array), op=MPI.MIN)
 
-    mean_flux = fem.form(global_flux*ufl.dx)
-    area = fem.form(fem.Constant(network_mesh.mesh, 1.0)*ufl.dx)
-    mean_global_flux = network_mesh.comm.allreduce(fem.assemble_scalar(mean_flux), op=MPI.SUM) / network_mesh.comm.allreduce(fem.assemble_scalar(area), op=MPI.SUM)
-
+    mean_flux = fem.form(global_flux * ufl.dx)
+    area = fem.form(fem.Constant(network_mesh.mesh, 1.0) * ufl.dx)
+    mean_global_flux = network_mesh.comm.allreduce(
+        fem.assemble_scalar(mean_flux), op=MPI.SUM
+    ) / network_mesh.comm.allreduce(fem.assemble_scalar(area), op=MPI.SUM)
 
     min_q.append(min_global_flux)
     max_q.append(max_global_flux)

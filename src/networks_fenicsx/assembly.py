@@ -1,17 +1,10 @@
 """
-This file is based on the graphnics project (https://arxiv.org/abs/2212.02916), https://github.com/IngeborgGjerde/fenics-networks - forked on August 2022
-Copyright (C) 2022-2023 by Ingeborg Gjerde
-
-You can freely redistribute it and/or modify it under the terms of the GNU General Public License, version 3.0, provided that the above copyright notice is kept intact and that the source code is made available under an open-source license.
-
-Modified by Cécile Daversin-Catty - 2023
-Modified by Joseph P. Dean - 2023
-Modified by Jørgen S. Dokken - 2025
 """
 
 from petsc4py import PETSc
 from typing import Protocol
 from dolfinx import fem, mesh as _mesh
+import dolfinx.la.petsc as _petsc_la
 import ufl
 
 import typing
@@ -20,7 +13,7 @@ import logging
 import numpy as np
 import numpy.typing as npt
 from networks_fenicsx.mesh import mesh
-from networks_fenicsx.utils.timers import timeit
+from .timers import timeit
 from networks_fenicsx import config
 
 __all__ = ["HydraulicNetworkAssembler", "PressureFunction"]
@@ -128,12 +121,12 @@ class HydraulicNetworkAssembler:
     _out_idx: int  # Starting point for each outflux interior bifurcation integral
     _in_keys: tuple[int]  # Set of unique markers for all influx conditions
     _out_keys: tuple[int]  # Set of unique markers for all outflux conditions
+    _a: list[list[fem.Form|None]]  # Bilinear forms
+    _L: list[fem.Form|None]  # Linear forms
 
     def __init__(self, config: config.Config, mesh: mesh.NetworkMesh):
         self._network_mesh = mesh
         self._cfg = config
-        self._A = None
-        self._b = None
         submeshes = self._network_mesh.submeshes
 
         # Flux spaces on each segment, ordered by the edge list
@@ -168,8 +161,8 @@ class HydraulicNetworkAssembler:
         # Initialize forms
         num_qs = self._network_mesh._num_edge_colors
         num_blocks = num_qs + 2
-        self.a = [[None] * num_blocks for _ in range(num_blocks)]
-        self.L = [None] * num_blocks
+        self._a = [[None] * num_blocks for _ in range(num_blocks)]
+        self._L = [None] * num_blocks
 
         # Compute integration data for network mesh
         self._integration_data = []
@@ -251,18 +244,18 @@ class HydraulicNetworkAssembler:
             dx_edge = ufl.Measure("dx", domain=submesh)
             ds_edge = ufl.Measure("ds", domain=submesh, subdomain_data=facet_marker)
 
-            self.a[i][i] = fem.form(
+            self._a[i][i] = fem.form(
                 qs[i] * vs[i] * dx_edge,
                 jit_options=jit_options,
                 form_compiler_options=form_compiler_options,
             )
-            self.a[num_qs][i] = fem.form(
+            self._a[num_qs][i] = fem.form(
                 phi * self.dds(qs[i]) * dx_edge,
                 entity_maps=[entity_map],
                 jit_options=jit_options,
                 form_compiler_options=form_compiler_options,
             )
-            self.a[i][num_qs] = fem.form(
+            self._a[i][num_qs] = fem.form(
                 -p * self.dds(vs[i]) * dx_edge,
                 entity_maps=[entity_map],
                 jit_options=jit_options,
@@ -270,7 +263,7 @@ class HydraulicNetworkAssembler:
             )
 
             # Add all boundary contributions
-            self.L[i] = fem.form(
+            self._L[i] = fem.form(
                 p_bc * vs[i] * ds_edge(network_mesh.in_marker)
                 - p_bc * vs[i] * ds_edge(network_mesh.out_marker),
                 jit_options=jit_options,
@@ -283,109 +276,123 @@ class HydraulicNetworkAssembler:
         # Map (bifurcation, edge) to local integration measure index
 
         for edge in range(self._network_mesh._num_edge_colors):
-            self.a[edge][-1] = ufl.ZeroBaseForm((lmbda, vs[edge]))
-            self.a[-1][edge] = ufl.ZeroBaseForm((mu, qs[edge]))
+            self._a[edge][-1] = ufl.ZeroBaseForm((lmbda, vs[edge]))
+            self._a[-1][edge] = ufl.ZeroBaseForm((mu, qs[edge]))
 
         ds = ufl.Measure(
             "ds", domain=self._network_mesh.mesh, subdomain_data=self._integration_data
         )
         for color in self._in_keys:
-            self.a[-1][color] += mu * qs[color] * ds(self._in_idx + color)
-            self.a[color][-1] += lmbda * vs[color] * ds(self._in_idx + color)
+            self._a[-1][color] += mu * qs[color] * ds(self._in_idx + color)
+            self._a[color][-1] += lmbda * vs[color] * ds(self._in_idx + color)
 
         for color in self._out_keys:
-            self.a[-1][color] -= mu * qs[color] * ds(self._out_idx + color)
-            self.a[color][-1] -= lmbda * vs[color] * ds(self._out_idx + color)
+            self._a[-1][color] -= mu * qs[color] * ds(self._out_idx + color)
+            self._a[color][-1] -= lmbda * vs[color] * ds(self._out_idx + color)
 
-        self.L[-1] = fem.form(ufl.ZeroBaseForm((mu,)))
+        self._L[-1] = fem.form(ufl.ZeroBaseForm((mu,)))
         entity_maps = [self._network_mesh.lm_map, *self._network_mesh.entity_maps]
         for i in range(self._network_mesh._num_edge_colors):
-            self.a[i][-1] = fem.form(
-                self.a[i][-1],
+            self._a[i][-1] = fem.form(
+                self._a[i][-1],
                 entity_maps=entity_maps,
                 jit_options=jit_options,
                 form_compiler_options=form_compiler_options,
             )
-            self.a[-1][i] = fem.form(
-                self.a[-1][i],
+            self._a[-1][i] = fem.form(
+                self._a[-1][i],
                 entity_maps=entity_maps,
                 jit_options=jit_options,
                 form_compiler_options=form_compiler_options,
             )
    
         # Add zero to uninitialized diagonal blocks (needed by petsc)
-        self.a[num_qs][num_qs] = fem.form(
+        self._a[num_qs][num_qs] = fem.form(
             ufl.ZeroBaseForm((p, phi)),
             jit_options=jit_options,
             form_compiler_options=form_compiler_options,
         )
-        self.L[num_qs] = fem.form(
+        self._L[num_qs] = fem.form(
             ufl.ZeroBaseForm((phi,)),
             jit_options=jit_options,
             form_compiler_options=form_compiler_options,
         )
 
     @property
-    def lm_space(self):
+    def lm_space(self)-> fem.FunctionSpace:
         return self._lm_space
 
     @property
-    def pressure_space(self):
+    def pressure_space(self)->fem.FunctionSpace:
         return self._pressure_space
 
     @property
-    def flux_spaces(self):
+    def flux_spaces(self)->list[fem.FunctionSpace]:
         return self._flux_spaces
 
     @property
-    def function_spaces(self):
+    def function_spaces(self)->list[fem.FunctionSpace]:
         return [*self._flux_spaces, self._pressure_space, self._lm_space]
+
+    @property
+    def network(self) -> mesh.NetworkMesh:
+        return self._network_mesh
 
     @timeit
     def assemble(
-        self, A: PETSc.Mat | None = None, b: PETSc.Mat | None = None
+        self, A: PETSc.Mat | None = None, b: PETSc.Mat | None = None,
+        assemble_lhs: bool = True, assemble_rhs: bool = True,
+        kind: str | typing.Sequence[typing.Sequence[str]] | None = None
     ) -> tuple[PETSc.Mat, PETSc.Vec]:
         """Assemble system matrix and rhs vector.
 
         Note:
             If neither `A` or `b` is provided, they are created inside this class.
-            
 
         Args:
             A: :py:class:`PETSc matrix<petsc4py.petsc.Mat>` to assemble :py:meth:`HydraulicAssembler.a` into.
             b: :py:class:`PETSc vector<petsc4py.petsc.Vec>` to assemble :py:meth:`HydraulicAssembler.L` into.
+            assemble_lhs: Whether to assemble the system matrix.
+            assemble_rhs: Whether to assemble the rhs vector.
+            kind: If no matrix or vector is provided, "kind" is used to determine what kind of matrix/vector to create.
         """
-        if A is None:
-            A = fem.petsc.create_matrix(self.a)
-        A = fem.petsc.assemble_matrix(A, self.a)
-        A.assemble()
-        if b is None:
-            b = fem.petsc.create_vector(fem.extract_function_spaces(self.L))
-        b = fem.petsc.assemble_vector(self.L)
-        b.ghostUpdate(addv=PETSc.InsertMode.ADD, mode=PETSc.ScatterMode.REVERSE)
+        if assemble_lhs:
+            if A is None:
+                A = fem.petsc.create_matrix(self._a, kind=kind)
+            A = fem.petsc.assemble_matrix(A, self._a, bcs=[])
+            A.assemble()
+            kind = "nest" if A.getType() == PETSc.Mat.Type.NEST else kind  # type: ignore[attr-defined]
+        if assemble_rhs:
+            if b is None:
+                b = fem.petsc.create_vector(fem.extract_function_spaces(self._L), kind=kind)
+            b = fem.petsc.assemble_vector(b, self._L)
+            _petsc_la._ghost_update(b, insert_mode=PETSc.InsertMode.ADD_VALUES, scatter_mode=PETSc.ScatterMode.REVERSE)
         return (A, b)
       
-
-    def bilinear_forms(self):
-        if self.a is None:
+    @property
+    def bilinear_forms(self) -> list[list[fem.Form]]:
+        """Nested list of the compiled, bilinear forms."""
+        if self._a is None:
             logging.error("Bilinear forms haven't been computed. Need to call compute_forms()")
         else:
-            return self.a
+            return self._a
 
-    def bilinear_form(self, i: int, j: int):
-        a = self.bilinear_forms()
+    def bilinear_form(self, i: int, j: int)-> fem.Form:
+        """Extract the i,j bilinear form."""
+        a = self.bilinear_forms
         if i > len(a) or j > len(a[i]):
             logging.error("Bilinear form a[" + str(i) + "][" + str(j) + "] out of range")
         return a[i][j]
 
-    def linear_forms(self):
-        if self.L is None:
+    @property
+    def linear_forms(self) -> list[fem.Form]:
+        if self._L is None:
             logging.error("Linear forms haven't been computed. Need to call compute_forms()")
         else:
-            return self.L
+            return self._L
 
-    def linear_form(self, i: int):
-        L = self.linear_forms()
+    def linear_form(self, i: int) -> fem.Form:
+        L = self.linear_forms
         if i > len(L):
             logging.error("Linear form L[" + str(i) + "] out of range")
         return L[i]

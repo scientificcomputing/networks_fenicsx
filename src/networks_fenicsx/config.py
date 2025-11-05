@@ -1,3 +1,6 @@
+# Copyright (C) Simula Research Laboratory and Cécile Daversin-Catty and Jørgen S. Dokken
+# SPDX-License-Identifier:    LGPL-3.0-or-later
+"""Configuration class for networks_fenicsx simulations."""
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -42,7 +45,3 @@ class Config:
 
     def as_dict(self):
         return {k: v for k, v in self.__dict__.items()}
-
-
-def default_parameters():
-    return {k: v for k, v in Config.__dict__.items() if not k.startswith("_")}

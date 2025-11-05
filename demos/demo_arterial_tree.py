@@ -1,12 +1,9 @@
-import numpy as np
 from pathlib import Path
-from networks_fenicsx import NetworkMesh, HydraulicNetworkAssembler
+import dolfinx.io
+from networks_fenicsx import NetworkMesh, HydraulicNetworkAssembler, Solver, Config
 from networks_fenicsx.mesh import arterial_tree
-from networks_fenicsx.solver import solver
-from networks_fenicsx.config import Config
 
-# from networks_fenicsx.utils.timers import timing_dict, timing_table
-from networks_fenicsx.utils.post_processing import export  # , perf_plot
+from networks_fenicsx.post_processing import export_functions, extract_global_flux
 import networkx as ntx
 
 cfg = Config()
@@ -47,11 +44,20 @@ assembler = HydraulicNetworkAssembler(cfg, network_mesh)
 assembler.compute_forms(p_bc_ex=p_bc_expr())
 # Solve
 
-solver_ = solver.Solver(cfg, network_mesh, assembler)
-sol = solver_.solve()
-(fluxes, global_flux, pressure) = export(
-    graph_mesh=network_mesh,
-    function_spaces=assembler.function_spaces,
-    sol=sol,
+solver = Solver(assembler, kind="nest")
+solver.timing_dir = cfg.outdir
+solver.assemble()
+sol = solver.solve()
+global_flux = extract_global_flux(network_mesh, sol)
+
+# Export results
+with dolfinx.io.VTXWriter(
+    global_flux.function_space.mesh.comm,
+    Path(cfg.outdir) / f"n{n}" / "global_flux.bp",
+    [global_flux],
+) as vtx:
+    vtx.write(0.0)
+export_functions(
+    functions=sol,
     outpath=Path(cfg.outdir) / f"n{n}",
 )

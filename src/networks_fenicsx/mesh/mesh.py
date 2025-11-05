@@ -16,7 +16,7 @@ from mpi4py import MPI
 from dolfinx import fem, io as _io, mesh, graph as _graph
 import ufl
 
-from networks_fenicsx.utils.timers import timeit
+from networks_fenicsx.timers import timeit
 from networks_fenicsx import config
 
 __all__ = ["NetworkMesh", "compute_tangent"]
