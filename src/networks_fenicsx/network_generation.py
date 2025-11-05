@@ -6,10 +6,11 @@
 
 __all__ = ["make_tree", "make_arterial_tree"]
 
+from typing import Annotated, Callable, Literal
+
 import networkx as nx
 import numpy as np
 import numpy.typing as npt
-from typing import Callable
 
 
 def tree_edges(n, r):
@@ -109,7 +110,9 @@ def _project_onto_plane(x, n):
 
 
 def _rotate_in_plane(
-    x: npt.NDArray[np.floating], axis: npt.NDArray[np.floating], angle: float
+    x: Annotated[npt.NDArray[np.floating], Literal[(3,)]],
+    axis: Annotated[npt.NDArray[np.floating], Literal[(3,)]],
+    angle: float,
 ) -> npt.NDArray[np.floating]:
     """Use Rodrigues formula to rotate a vector in space given an axis and
     angle of rotation. Ref: https://en.wikipedia.org/wiki/Rodrigues%27_rotation_formula
@@ -148,10 +151,8 @@ def _translate(
 
 def make_arterial_tree(
     N: int,
-    p0: np.ndarray[tuple[float, float, float], np.dtype[np.floating]] = np.zeros(
-        3, dtype=np.float64
-    ),
-    direction: np.ndarray[tuple[float, float, float], np.dtype[np.floating]] = np.array(
+    p0: Annotated[npt.NDArray[np.floating], Literal[(3,)]] = np.zeros(3, dtype=np.float64),
+    direction: Annotated[npt.NDArray[np.floating], Literal[(3,)]] = np.array(
         [0, 1, 0], dtype=np.float64
     ),
     D0: float = 2.0,
@@ -239,7 +240,7 @@ def make_arterial_tree(
             # angle for the biggest vessel
             cos2 = (D0**4 + D2**4 - (D0**3 - D2**3) ** (4 / 3)) / (2 * D0**2 * D2**2)
             angle2 = np.degrees(np.arccos(cos2))
-            sign1 = 1 if not random else np.rand.choice([-1, 1])
+            sign1 = 1 if not random else np.random.choice([-1, 1])
             sign2 = -sign1
 
             # Add first daughter vessel

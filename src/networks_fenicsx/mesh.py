@@ -8,21 +8,30 @@ This idea stems from the Graphnics project (https://doi.org/10.48550/arXiv.2212.
 https://github.com/IngeborgGjerde/fenics-networks by Ingeborg Gjerde.
 """
 
+from typing import Callable, Iterable
+
+from mpi4py import MPI
+
 import networkx as nx
 import numpy as np
-import basix.ufl
 import numpy.typing as npt
-from mpi4py import MPI
-from dolfinx import fem, io as _io, mesh, graph as _graph
-import ufl
 
-from networks_fenicsx.timers import timeit
+import basix.ufl
+import ufl
+from dolfinx import fem, mesh
+from dolfinx import graph as _graph
+from dolfinx import io as _io
 from networks_fenicsx import config
+from networks_fenicsx.timers import timeit
 
 __all__ = ["NetworkMesh", "compute_tangent"]
 
 
-def color_graph(graph: nx.DiGraph, use_coloring: bool, strategy: str) -> dict[tuple[int, int], int]:
+def color_graph(
+    graph: nx.DiGraph,
+    use_coloring: bool,
+    strategy: str | Callable[[nx.Graph, dict[int, int]], Iterable[int]],
+) -> dict[tuple[int, int], int]:
     """
     Color the edges of a graph.
     """
@@ -156,6 +165,7 @@ class NetworkMesh:
         bifurcation_in_color = None
         bifurcation_out_color = None
         if comm.rank == graph_rank:
+            assert isinstance(graph, nx.DiGraph), f"Directional graph not present of {graph_rank}"
             geom_dim = len(graph.nodes[1]["pos"])
             edge_coloring = color_graph(graph, self.cfg.graph_coloring, self.cfg.color_strategy)
 

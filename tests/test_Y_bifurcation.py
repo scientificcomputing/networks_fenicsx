@@ -1,7 +1,6 @@
 from networks_fenicsx import network_generation
 from networks_fenicsx.config import Config
 
-
 cfg = Config()
 cfg.outdir = "demo_Y_bifurcation"
 cfg.export = True

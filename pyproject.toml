@@ -76,11 +76,11 @@ target-version = "py310"
 
 [tool.ruff.lint]
 # Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
-select = ["E", "F"]
+select = ["E", "F", "I"]
 ignore = ["E402", "E741", "E743", "E731"]
 
 # Allow autofix for all enabled rules (when `--fix`) is provided.
-fixable = ["A", "B", "C", "D", "E", "F"]
+fixable = ["A", "B", "C", "D", "E", "F", "I"]
 unfixable = []
 
 # Allow unused variables when underscore-prefixed.
@@ -97,16 +97,8 @@ convention = "google"
 
 
 [tool.ruff.lint.isort]
-known-first-party = ["networks_fenicsx"]
-known-third-party = [
-    "basix",
-    "dolfinx",
-    "ffcx",
-    "ufl",
-    "gmsh",
-    "numpy",
-    "pytest",
-]
+known-first-party = ["networks_fenicsx", "basix", "dolfinx", "ffcx", "ufl"]
+known-third-party = ["gmsh", "numpy", "pytest"]
 section-order = [
     "future",
     "standard-library",

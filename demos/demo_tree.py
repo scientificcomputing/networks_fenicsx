@@ -1,14 +1,21 @@
-import dolfinx
-from mpi4py import MPI
-import numpy as np
-import matplotlib.pyplot as plt
-from dolfinx import fem
-import ufl
 from pathlib import Path
-from networks_fenicsx import Config, NetworkMesh, HydraulicNetworkAssembler, Solver
-from networks_fenicsx.post_processing import extract_global_flux, export_functions
-from networks_fenicsx import network_generation
 
+from mpi4py import MPI
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+import dolfinx
+import ufl
+from dolfinx import fem
+from networks_fenicsx import (
+    Config,
+    HydraulicNetworkAssembler,
+    NetworkMesh,
+    Solver,
+    network_generation,
+)
+from networks_fenicsx.post_processing import export_functions, extract_global_flux
 
 cfg = Config()
 cfg.outdir = "demo_tree"

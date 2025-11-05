@@ -1,11 +1,12 @@
 from pathlib import Path
-import dolfinx.io
-from networks_fenicsx import NetworkMesh, HydraulicNetworkAssembler, Solver, Config
-from networks_fenicsx.network_generation import make_arterial_tree
+
+import networkx as ntx
 import numpy as np
 
+import dolfinx.io
+from networks_fenicsx import Config, HydraulicNetworkAssembler, NetworkMesh, Solver
+from networks_fenicsx.network_generation import make_arterial_tree
 from networks_fenicsx.post_processing import export_functions, extract_global_flux
-import networkx as ntx
 
 cfg = Config()
 cfg.export = True

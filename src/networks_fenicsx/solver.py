@@ -3,13 +3,14 @@
 """Solver interface for graphs."""
 
 import typing
-from petsc4py import PETSc
 from pathlib import Path
-from networks_fenicsx import assembly
-from networks_fenicsx.timers import timeit
-from networks_fenicsx import config
+
+from petsc4py import PETSc
+
 import dolfinx.fem.petsc
 import dolfinx.la.petsc
+from networks_fenicsx import assembly, config
+from networks_fenicsx.timers import timeit
 
 __all__ = ["Solver"]
 

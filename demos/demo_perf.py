@@ -1,12 +1,14 @@
-import time
-from mpi4py import MPI
 import shutil
+import time
+
+from mpi4py import MPI
+
 from networks_fenicsx import NetworkMesh
+from networks_fenicsx.config import Config
 from networks_fenicsx.mesh import mesh_generation
 from networks_fenicsx.solver import assembly, solver
-from networks_fenicsx.config import Config
-from networks_fenicsx.utils.timers import timing_table
 from networks_fenicsx.utils.post_processing import export
+from networks_fenicsx.utils.timers import timing_table
 
 cfg = Config()
 cfg.export = True

@@ -4,12 +4,12 @@
 Timer utilities for profiling
 """
 
-from mpi4py import MPI
-
-from time import perf_counter
-from pathlib import Path
 from functools import wraps
+from pathlib import Path
+from time import perf_counter
 from typing import Dict, List
+
+from mpi4py import MPI
 
 from networks_fenicsx import config
 

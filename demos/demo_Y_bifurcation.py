@@ -1,8 +1,9 @@
-import dolfinx.io
 from pathlib import Path
+
+import dolfinx.io
+from networks_fenicsx import Config, HydraulicNetworkAssembler, NetworkMesh, Solver
 from networks_fenicsx.mesh import mesh_generation
-from networks_fenicsx import Solver, HydraulicNetworkAssembler, NetworkMesh, Config
-from networks_fenicsx.post_processing import extract_global_flux, export_functions
+from networks_fenicsx.post_processing import export_functions, extract_global_flux
 
 cfg = Config()
 cfg.outdir = "demo_Y_bifurcation"

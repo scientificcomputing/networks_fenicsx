@@ -2,12 +2,14 @@
 # SPDX-License-Identifier:    MIT
 """Configuration class for networks_fenicsx simulations."""
 
+import shutil
+import typing
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+
 from mpi4py import MPI
-import typing
-import shutil
+
 import networkx as ntx
 
 

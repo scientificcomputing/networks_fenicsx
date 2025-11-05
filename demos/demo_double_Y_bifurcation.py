@@ -1,10 +1,10 @@
 import numpy as np
 
 from networks_fenicsx import HydraulicNetworkAssembler, NetworkMesh
-from networks_fenicsx.mesh import network_generation
-from networks_fenicsx.solver import solver
 from networks_fenicsx.config import Config
+from networks_fenicsx.mesh import network_generation
 from networks_fenicsx.post_processing import export
+from networks_fenicsx.solver import solver
 
 cfg = Config()
 cfg.outdir = "demo_double_Y_bifurcation"

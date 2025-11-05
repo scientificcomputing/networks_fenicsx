@@ -2,20 +2,23 @@
 # SPDX-License-Identifier:    MIT
 """Assembly routine for Hydraulic network."""
 
-from petsc4py import PETSc
-from typing import Protocol
-from dolfinx import fem
-import dolfinx.la.petsc as _petsc_la
-import ufl
-
-import typing
-import basix
 import logging
+import typing
+from typing import Protocol
+
+from petsc4py import PETSc
+
 import numpy as np
 import numpy.typing as npt
+
+import basix
+import dolfinx.la.petsc as _petsc_la
+import ufl
+from dolfinx import fem
+from networks_fenicsx import config
+
 from .mesh import NetworkMesh
 from .timers import timeit
-from networks_fenicsx import config
 
 __all__ = ["HydraulicNetworkAssembler", "PressureFunction"]
 

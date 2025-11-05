@@ -9,12 +9,13 @@ __license__ = meta["License"]
 __email__ = meta["Author-email"]
 __program_name__ = meta["Name"]
 
-from .mesh import NetworkMesh
-from .assembly import HydraulicNetworkAssembler
-from .solver import Solver
-from .config import Config
-import networks_fenicsx.post_processing as post_processing
 import networks_fenicsx.network_generation as network_generation
+import networks_fenicsx.post_processing as post_processing
+
+from .assembly import HydraulicNetworkAssembler
+from .config import Config
+from .mesh import NetworkMesh
+from .solver import Solver
 
 __all__ = [
     "HydraulicNetworkAssembler",

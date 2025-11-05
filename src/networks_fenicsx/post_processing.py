@@ -4,11 +4,13 @@
 Convenience functions for post-processing.
 """
 
-from mpi4py import MPI
-from dolfinx import fem, io
 from pathlib import Path
+
+from mpi4py import MPI
+
 import numpy as np
 
+from dolfinx import fem, io
 from networks_fenicsx.mesh import NetworkMesh
 
 __all__ = ["extract_global_flux", "export_functions"]
