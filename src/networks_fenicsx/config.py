@@ -1,6 +1,7 @@
 # Copyright (C) Simula Research Laboratory and Cécile Daversin-Catty and Jørgen S. Dokken
 # SPDX-License-Identifier:    MIT
 """Configuration class for networks_fenicsx simulations."""
+
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,8 +21,9 @@ class Config:
     export: bool = False
     clean: bool = True
     graph_coloring: bool = False
+    # Coloring strategy based to pass to {py:func}`networkx.coloring.greedy_color`
     color_strategy: str | typing.Callable[[ntx.Graph, dict[int, int]], Iterable[int]] = (
-        "largest_first"  # Coloring strategy based to pass to {py:funx}`networkx.coloring.greedy_color`
+        "largest_first"
     )
 
     def __post_init__(self):

@@ -13,6 +13,7 @@ import dolfinx.la.petsc
 
 __all__ = ["Solver"]
 
+
 class Solver:
     """PETSc solver interface for the Network problems.
 
@@ -22,10 +23,11 @@ class Solver:
         petsc_options: Dictionary of PETSc options.
         kind: Kind of PETSc matrix and vectors to create.
     """
-    _ksp: PETSc.KSP|None = None
-    _A: PETSc.Mat|None = None
-    _b: PETSc.Vec|None = None
-    _x: PETSc.Vec|None = None
+
+    _ksp: PETSc.KSP | None = None
+    _A: PETSc.Mat | None = None
+    _b: PETSc.Vec | None = None
+    _x: PETSc.Vec | None = None
     _assembler: assembly.HydraulicNetworkAssembler
     _timing_dir: str | Path = None
 
@@ -34,16 +36,17 @@ class Solver:
         assembler: assembly.HydraulicNetworkAssembler,
         petsc_options_prefix: str = "NetworkSolver_",
         petsc_options: dict | None = None,
-        kind: str | typing.Sequence[typing.Sequence[str]]|None = None,
+        kind: str | typing.Sequence[typing.Sequence[str]] | None = None,
     ):
-
         self._assembler = assembler
 
         self._ksp = PETSc.KSP().create(self._assembler.network.comm)
 
         self.cfg = config
         self._A = dolfinx.fem.petsc.create_matrix(self._assembler.bilinear_forms, kind=kind)
-        self._b = dolfinx.fem.petsc.create_vector(dolfinx.fem.extract_function_spaces(self._assembler.linear_forms), kind=kind)
+        self._b = dolfinx.fem.petsc.create_vector(
+            dolfinx.fem.extract_function_spaces(self._assembler.linear_forms), kind=kind
+        )
         kind = "nest" if self._A.getType() == "nest" else kind  # type: ignore[attr-defined]
         self._x = dolfinx.fem.petsc.create_vector(self._assembler.function_spaces, kind)
 
@@ -55,8 +58,13 @@ class Solver:
         self._b.setOptionsPrefix(f"{petsc_options_prefix}b_")
 
         if petsc_options is None:
-            petsc_options = {"ksp_type": "preonly", "pc_type": "lu", "pc_factor_mat_solver_type": "mumps",
-                             "ksp_monitor": None, "ksp_error_if_not_converged": True}
+            petsc_options = {
+                "ksp_type": "preonly",
+                "pc_type": "lu",
+                "pc_factor_mat_solver_type": "mumps",
+                "ksp_monitor": None,
+                "ksp_error_if_not_converged": True,
+            }
         opts = PETSc.Options()
         opts.prefixPush(self.ksp.getOptionsPrefix())
         for key, value in petsc_options.items():
@@ -76,7 +84,7 @@ class Solver:
     @timing_dir.setter
     def timing_dir(self, value: str | Path):
         self._timing_dir = Path(value)
-  
+
     @property
     def assembler(self) -> assembly.HydraulicNetworkAssembler:
         """The hydraulic network assembler."""
@@ -86,15 +94,15 @@ class Solver:
     def A(self) -> PETSc.Mat:
         """System matrix."""
         return self._A
-    
+
     @property
     def b(self) -> PETSc.Vec:
         """Right-hand side vector."""
         return self._b
-    
-    def assemble(self, lhs:bool=True, rhs:bool=True):
+
+    def assemble(self, lhs: bool = True, rhs: bool = True):
         """Assemble the system matrix and rhs vector.
-        
+
         Args:
             lhs: Whether to assemble the system matrix.
             rhs: Whether to assemble the rhs vector.
@@ -108,10 +116,12 @@ class Solver:
         return self._ksp
 
     @timeit
-    def solve(self, functions: list[dolfinx.fem.Function]|None=None) -> list[dolfinx.fem.Function]:
+    def solve(
+        self, functions: list[dolfinx.fem.Function] | None = None
+    ) -> list[dolfinx.fem.Function]:
         """Solve the linear system of equations and assign them to a set of corresponding
         DOLFINx functions.
-        
+
         Args:
             functions: List of DOLFINx functions to assign the solution to.
                 If not provided they are created based on the assembler information.
@@ -124,9 +134,11 @@ class Solver:
                 functions.append(dolfinx.fem.Function(Vi, name=f"flux_color_{i}"))
             functions.append(dolfinx.fem.Function(self.assembler.pressure_space, name="pressure"))
             functions.append(dolfinx.fem.Function(self.assembler.lm_space, name="global_flux"))
-          
+
         self.ksp.solve(self.b, self._x)
-        dolfinx.la.petsc._ghost_update(self._x, insert_mode=PETSc.InsertMode.INSERT, scatter_mode=PETSc.ScatterMode.FORWARD)
+        dolfinx.la.petsc._ghost_update(
+            self._x, insert_mode=PETSc.InsertMode.INSERT, scatter_mode=PETSc.ScatterMode.FORWARD
+        )
         dolfinx.fem.petsc.assign(self._x, functions)
         return functions
 

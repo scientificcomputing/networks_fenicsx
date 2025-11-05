@@ -17,6 +17,7 @@ cfg.lcar = 0.2
 G = network_generation.make_tree(2, 3.1, 7.3)
 network_mesh = NetworkMesh(G, cfg)
 
+
 class p_bc_expr:
     def eval(self, x):
         return np.full(x.shape[1], x[0])

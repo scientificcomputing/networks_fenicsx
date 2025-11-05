@@ -21,6 +21,6 @@ keywords:
   - DOLFINx
   - networkx
   - MPI
-license: GPL-3.0
+license: MIT
 version: 0.2.0.dev0
 date-released: '2025-11-05'

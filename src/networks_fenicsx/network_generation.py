@@ -173,11 +173,13 @@ def make_arterial_tree(
         D2=D0(\\gammma^3+1)^(-1/3)\\\\
         D1=\\gamma D2
 
-    We consider that the length `L` of a vessel segment in a given network is related to its diameter `d`
-    via :math:`L = \\lambda d`, where the positive constant :math:`\\lambda` is network-specific.
+    We consider that the length `L` of a vessel segment in a given network is
+    related to its diameter `d` via :math:`L = \\lambda d`,
+    where the positive constant :math:`\\lambda` is network-specific.
 
     The angle of bifurcation can be expressed based on blood volume conservation
-    and minimum energy hypothesis FUNG, Y. (1997). Biomechanics: Circulation. 2nd edition. Heidelberg: Springer.
+    and minimum energy hypothesis
+    FUNG, Y. (1997). Biomechanics: Circulation. 2nd edition. Heidelberg: Springer.
     HUMPHREY, J. and DELANGE, S. (2004). An Introduction to Biomechanics. Heidelberg: Springer.
     VOGEL, S. (1992). Vital Circuits. Oxford: Oxford University Press.
     See here for derivation : https://www.montogue.com/blog/murrays-law-and-arterial-bifurcations/

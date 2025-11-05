@@ -49,8 +49,9 @@ def compute_integration_data(
         network_mesh: The network mesh
 
     Returns:
-        A tuple `(in_entities, out_entities) mapping integration entities on each edge of the network
-        (marked by color) to its integration entities on the parent mesh.
+        A tuple `(in_entities, out_entities) mapping integration entities
+        on each edge of the network (marked by color) to its integration
+        entities on the parent mesh.
     """
 
     # Pack all bifurcation in and out fluxes per colored edge in graph
@@ -355,11 +356,14 @@ class HydraulicNetworkAssembler:
             If neither `A` or `b` is provided, they are created inside this class.
 
         Args:
-            A: :py:class:`PETSc matrix<petsc4py.petsc.Mat>` to assemble :py:meth:`HydraulicAssembler.a` into.
-            b: :py:class:`PETSc vector<petsc4py.petsc.Vec>` to assemble :py:meth:`HydraulicAssembler.L` into.
+            A: :py:class:`PETSc matrix<petsc4py.petsc.Mat>` to assemble
+                :py:meth:`HydraulicAssembler.a` into.
+            b: :py:class:`PETSc vector<petsc4py.petsc.Vec>` to assemble
+                :py:meth:`HydraulicAssembler.L` into.
             assemble_lhs: Whether to assemble the system matrix.
             assemble_rhs: Whether to assemble the rhs vector.
-            kind: If no matrix or vector is provided, "kind" is used to determine what kind of matrix/vector to create.
+            kind: If no matrix or vector is provided, "kind" is used to determine what
+                kind of matrix/vector to create.
         """
         if assemble_lhs:
             if A is None:

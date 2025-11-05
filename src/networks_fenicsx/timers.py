@@ -13,7 +13,7 @@ from typing import Dict, List
 
 from networks_fenicsx import config
 
-__all__ = ["timeit", "timing_dict", "timing_table"]
+__all__ = ["timeit", "timing_dict"]
 
 
 def timeit(func):
@@ -25,7 +25,7 @@ def timeit(func):
 
     Note:
         In parallel, the average time over all processors is stored.
-    
+
     Args:
         func: function to time
     """
@@ -43,8 +43,7 @@ def timeit(func):
         # Write to profiling file
         if MPI.COMM_WORLD.rank == 0:
             avg_time = sum_time / MPI.COMM_WORLD.size
-            avg_time_info = (
-                f"{func.__name__}: {avg_time:.5e} s \n")
+            avg_time_info = f"{func.__name__}: {avg_time:.5e} s \n"
             try:
                 p = Path(args[0].cfg.outdir)
             except AttributeError:
@@ -59,13 +58,13 @@ def timeit(func):
     return wrapper
 
 
-def timing_dict(input_file: config.Config|str|Path)-> dict[str, list[float]]:
+def timing_dict(input_file: config.Config | str | Path) -> dict[str, list[float]]:
     """
     Read `"profiling.txt"` and create a dictionary out of it.
 
     Args:
        str : Configuration file or path to read from
-    
+
     Returns:
          dict: Dictionary with function names as keys and the list of times as values.
     """

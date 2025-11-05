@@ -1,6 +1,4 @@
 import time
-import numpy as np
-from pathlib import Path
 from mpi4py import MPI
 import shutil
 from networks_fenicsx import NetworkMesh
@@ -32,7 +30,7 @@ cfg.lcar = 2
 cfg.clean = False
 
 cfg.outdir.mkdir(exist_ok=True, parents=True)
-cache_dir = cfg.outdir / f".cache"
+cache_dir = cfg.outdir / ".cache"
 if cache_dir.exists():
     shutil.rmtree(cache_dir, ignore_errors=True)
 

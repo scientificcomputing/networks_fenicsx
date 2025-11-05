@@ -1,4 +1,3 @@
-
 import dolfinx.io
 from pathlib import Path
 from networks_fenicsx.mesh import mesh_generation
@@ -12,13 +11,15 @@ cfg.clean = True
 cfg.lcar = 0.25
 
 # Create Y bifurcation graph
-G = mesh_generation.make_tree(2,1,3)
+G = mesh_generation.make_tree(2, 1, 3)
 
 network_mesh = NetworkMesh(G, cfg)
+
 
 class p_bc_expr:
     def eval(self, x):
         return x[1]
+
 
 assembler = HydraulicNetworkAssembler(cfg, network_mesh)
 assembler.compute_forms(p_bc_ex=p_bc_expr())
@@ -38,7 +39,4 @@ with dolfinx.io.VTXWriter(
     [global_flux],
 ) as vtx:
     vtx.write(0.0)
-export_functions(
-    functions=sol,
-    outpath=Path(cfg.outdir)
-)
+export_functions(functions=sol, outpath=Path(cfg.outdir))

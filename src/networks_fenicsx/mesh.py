@@ -22,9 +22,7 @@ from networks_fenicsx import config
 __all__ = ["NetworkMesh", "compute_tangent"]
 
 
-def color_graph(
-    graph: nx.DiGraph, use_coloring: bool, strategy: str
-) -> dict[tuple[int, int], int]:
+def color_graph(graph: nx.DiGraph, use_coloring: bool, strategy: str) -> dict[tuple[int, int], int]:
     """
     Color the edges of a graph.
     """
@@ -34,7 +32,6 @@ def color_graph(
     else:
         edge_coloring = {edge: i for i, edge in enumerate(graph.edges)}
     return edge_coloring
-
 
 
 class NetworkMesh:
@@ -71,7 +68,13 @@ class NetworkMesh:
     _lm_mesh: mesh.Mesh | None
     _lm_map: mesh.EntityMap | None
 
-    def __init__(self, graph: nx.DiGraph, config: config.Config, comm: MPI.Comm = MPI.COMM_WORLD, graph_rank: int = 0):
+    def __init__(
+        self,
+        graph: nx.DiGraph,
+        config: config.Config,
+        comm: MPI.Comm = MPI.COMM_WORLD,
+        graph_rank: int = 0,
+    ):
         self._cfg = config
         self._cfg.clean_dir()
         self._build_mesh(graph, comm=comm, graph_rank=graph_rank)
@@ -81,8 +84,7 @@ class NetworkMesh:
 
     @property
     def lm_mesh(self) -> mesh.Mesh:
-        """Lagrange multiplier mesh, a point-cloud mesh including each bifurcation.
-        """
+        """Lagrange multiplier mesh, a point-cloud mesh including each bifurcation."""
         if self._lm_mesh is None:
             raise RuntimeError("Lagrange multiplier submesh has not been created.")
         return self._lm_mesh
@@ -95,7 +97,7 @@ class NetworkMesh:
         return self._lm_map
 
     @property
-    def comm(self)-> MPI.Comm:
+    def comm(self) -> MPI.Comm:
         """MPI-communicator of the network mesh"""
         return self.mesh.comm
 
@@ -107,7 +109,7 @@ class NetworkMesh:
     @timeit
     def _create_lm_submesh(self):
         """Create a submesh for the Lagrange multipliers at the bifurcations.
-        
+
         Note:
             This is an internal class function, that is not supposed to be called by
             users.
@@ -125,10 +127,10 @@ class NetworkMesh:
         # Workaround until: https://github.com/FEniCS/dolfinx/pull/3974 is merged
         self._lm_mesh.topology.create_entity_permutations()
 
-
-
     @timeit
-    def _build_mesh(self, graph: nx.DiGraph| None, comm: MPI.Comm=MPI.COMM_WORLD, graph_rank: int = 0):
+    def _build_mesh(
+        self, graph: nx.DiGraph | None, comm: MPI.Comm = MPI.COMM_WORLD, graph_rank: int = 0
+    ):
         """Convert the networkx graph into a {py:class}`dolfinx.mesh.Mesh`.
 
         The element size is controlled by `self.cfg.lcar`.
@@ -155,7 +157,7 @@ class NetworkMesh:
         bifurcation_out_color = None
         if comm.rank == graph_rank:
             geom_dim = len(graph.nodes[1]["pos"])
-            edge_coloring =  color_graph(graph, self.cfg.graph_coloring, self.cfg.color_strategy)
+            edge_coloring = color_graph(graph, self.cfg.graph_coloring, self.cfg.color_strategy)
 
             num_edge_colors = len(set(edge_coloring.values()))
             cells_array = np.asarray([[u, v] for u, v in graph.edges()])
@@ -192,11 +194,17 @@ class NetworkMesh:
                     boundary_out_nodes.append(int(boundary))
 
         comm.bcast(num_edge_colors, root=graph_rank)
-        num_edge_colors, number_of_nodes, max_connections, geom_dim = comm.bcast((num_edge_colors, number_of_nodes, max_connections, geom_dim), root=graph_rank)
+        num_edge_colors, number_of_nodes, max_connections, geom_dim = comm.bcast(
+            (num_edge_colors, number_of_nodes, max_connections, geom_dim), root=graph_rank
+        )
         comm.barrier()
-        bifurcation_values, boundary_values = comm.bcast((bifurcation_values, boundary_values), root=graph_rank)
+        bifurcation_values, boundary_values = comm.bcast(
+            (bifurcation_values, boundary_values), root=graph_rank
+        )
         comm.barrier()
-        bifurcation_in_color, bifurcation_out_color = comm.bcast((bifurcation_in_color, bifurcation_out_color), root=graph_rank)
+        bifurcation_in_color, bifurcation_out_color = comm.bcast(
+            (bifurcation_in_color, bifurcation_out_color), root=graph_rank
+        )
         comm.barrier()
 
         self._geom_dim = geom_dim
