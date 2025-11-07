@@ -218,7 +218,11 @@ class HydraulicNetworkAssembler:
         P1_e = fem.functionspace(network_mesh.mesh, ("Lagrange", 1))
         p_bc = fem.Function(P1_e)
         p_bc.interpolate(p_bc_ex.eval)
-        tangent = self._network_mesh.tangent
+
+        tangent = ufl.Jacobian(self._network_mesh.mesh)
+        tangent = tangent[:, 0]
+        tangent /= ufl.sqrt(ufl.inner(tangent, tangent))
+
         for i, (submesh, entity_map, facet_marker) in enumerate(
             zip(
                 network_mesh.submeshes,

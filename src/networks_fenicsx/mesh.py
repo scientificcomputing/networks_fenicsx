@@ -8,7 +8,7 @@ This idea stems from the Graphnics project (https://doi.org/10.48550/arXiv.2212.
 https://github.com/IngeborgGjerde/fenics-networks by Ingeborg Gjerde.
 """
 
-from typing import Any, Callable, Iterable
+from typing import Callable, Iterable
 
 from mpi4py import MPI
 
@@ -18,9 +18,9 @@ import numpy.typing as npt
 
 import basix.ufl
 import ufl
-from dolfinx import fem, mesh
 from dolfinx import graph as _graph
 from dolfinx import io as _io
+from dolfinx import mesh
 from networks_fenicsx import config
 
 __all__ = ["NetworkMesh"]
@@ -70,7 +70,6 @@ class NetworkMesh:
     _submesh_facet_markers: list[mesh.MeshTags]
     _edge_meshes: list[mesh.Mesh]
     _edge_entity_maps: list[mesh.EntityMap]
-    _tangent: fem.Function
     _bifurcation_values: npt.NDArray[np.int32]
     _boundary_values: npt.NDArray[np.int32]
     _lm_mesh: mesh.Mesh | None
@@ -223,7 +222,6 @@ class NetworkMesh:
         self._bifurcation_out_color = bifurcation_out_color
 
         # Generate mesh
-        tangents: npt.NDArray[np.float64] = np.empty((0, self._geom_dim), dtype=np.float64)
         if comm.rank == graph_rank:
             assert isinstance(graph, nx.DiGraph), (
                 f"No directional graph present on rank {comm.rank}"
@@ -235,23 +233,16 @@ class NetworkMesh:
             mesh_nodes = vertex_coords.copy()
             cells = []
             cell_markers = []
-            local_tangents = []
             if len(line_weights) == 0:
                 for segment in cells_array:
                     cells.append(np.array([segment[0], segment[1]], dtype=np.int64))
                     cell_markers.append(edge_coloring[(segment[0], segment[1])])
-                    start = vertex_coords[segment[0]]
-                    end = vertex_coords[segment[1]]
-                    local_tangents.append(_compute_tangent(start, end))
             else:
                 for segment in cells_array:
                     start_coord_pos = mesh_nodes.shape[0]
                     start = vertex_coords[segment[0]]
                     end = vertex_coords[segment[1]]
                     internal_line_coords = start * (1 - line_weights) + end * line_weights
-
-                    tangent = _compute_tangent(start, end)
-                    local_tangents.append(np.tile(tangent, (internal_line_coords.shape[0] + 1, 1)))
 
                     mesh_nodes = np.vstack((mesh_nodes, internal_line_coords))
                     cells.append(np.array([segment[0], start_coord_pos], dtype=np.int64))
@@ -280,12 +271,10 @@ class NetworkMesh:
                     )
             cells_ = np.vstack(cells).astype(np.int64)
             cell_markers_ = np.array(cell_markers, dtype=np.int32)
-            tangents = np.vstack(local_tangents).astype(np.float64)
         else:
             cells_ = np.empty((0, 2), dtype=np.int64)
             mesh_nodes = np.empty((0, self._geom_dim), dtype=np.float64)
             cell_markers_ = np.empty((0,), dtype=np.int32)
-        tangents = tangents[:, : self._geom_dim].copy()
         partitioner = mesh.create_cell_partitioner(mesh.GhostMode.shared_facet)
         graph_mesh = mesh.create_mesh(
             comm,
@@ -304,10 +293,6 @@ class NetworkMesh:
             cell_markers_,
         )
 
-        # Distribute tangents
-        tangent_space = fem.functionspace(graph_mesh, ("DG", 0, (self._geom_dim,)))
-        self._tangent = fem.Function(tangent_space)
-
         # Which cells from the input mesh (rank 0) correspond to the local cells on this rank
         original_cell_indices = self.mesh.topology.original_cell_index[
             : self.mesh.topology.index_map(self.mesh.topology.dim).size_local
@@ -319,26 +304,6 @@ class NetworkMesh:
         if comm.rank == graph_rank:
             assert isinstance(recv_counts, Iterable)
             assert sum(recv_counts) == cells_.shape[0]
-
-        # Send to rank 0 which tangents that we need
-        recv_buffer: None | list[npt.NDArray[np.int64] | list[Any] | MPI.Datatype] = None
-        if comm.rank == graph_rank:
-            assert recv_counts is not None
-            recv_buffer = [np.empty(cells_.shape[0], dtype=np.int64), recv_counts, MPI.INT64_T]
-
-        comm.Gatherv(sendbuf=original_cell_indices, recvbuf=recv_buffer, root=graph_rank)
-        send_t_buffer = None
-        if comm.rank == graph_rank:
-            assert recv_buffer is not None
-            recv_data = recv_buffer[0]
-            assert isinstance(recv_data, np.ndarray)
-            send_t_buffer = [
-                tangents[recv_data].flatten(),
-                np.array(recv_counts) * self._geom_dim,
-            ]
-
-        comm.Scatterv(sendbuf=send_t_buffer, recvbuf=self.tangent.x.array, root=graph_rank)
-        self.tangent.x.scatter_forward()
 
         self._subdomains = mesh.meshtags_from_entities(
             self.mesh,
@@ -460,19 +425,6 @@ class NetworkMesh:
         return self._edge_entity_maps
 
     @property
-    def tangent(self):
-        """Return DG-0 field containing the tangent vector of the graph."""
-        return self._tangent
-
-    def export_tangent(self):
-        if self.cfg.export:
-            with _io.XDMFFile(self.comm, self.cfg.outdir / "mesh/tangent.xdmf", "w") as file:
-                file.write_mesh(self.mesh)
-                file.write_function(self.tangent)
-        else:
-            print("Export of tangent skipped as cfg.export is set to False.")
-
-    @property
     def bifurcation_values(self) -> npt.NDArray[np.int32]:
         return self._bifurcation_values
 
@@ -485,23 +437,3 @@ class NetworkMesh:
 
     def out_edges(self, bifurcation: int) -> list[int]:
         return self._bifurcation_out_color[bifurcation]
-
-
-def _compute_tangent(
-    start: npt.NDArray[np.float64], end: npt.NDArray[np.float64]
-) -> npt.NDArray[np.float64]:
-    """Compute the tangent vector from start to end points.
-
-    Tangent is oriented according to positive y-axis.
-    If perpendicular to y-axis, align with x-axis.
-
-    Args:
-        start: Starting point coordinates.
-        end: Ending point coordinates.
-
-    Returns:
-        Normalized tangent vector from start to end.
-    """
-    tangent = end - start
-    tangent /= np.linalg.norm(tangent, axis=-1)
-    return tangent
