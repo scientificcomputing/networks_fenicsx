@@ -19,7 +19,7 @@ networks_fenicsx = "networks_fenicsx.cli:main"
 [project.optional-dependencies]
 test = ["pytest"]
 linting = ["mypy", "flake8"]
-docs = ["jupyter-book<2.0.0", "jupytext"]
+docs = ["jupyter-book<2.0.0", "jupytext", "sphinx-codeautolink"]
 all = [
     "networks_fenicsx[test]",
     "networks_fenicsx[linting]",
