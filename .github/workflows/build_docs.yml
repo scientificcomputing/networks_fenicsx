@@ -3,7 +3,7 @@ name: Build documentation with jupyter-book
 on:
   # Runs on pushes targeting the default branch
   push:
-    branches: ["master"]
+    branches: ["main"]
   workflow_call:
 
   workflow_dispatch:
