@@ -320,12 +320,15 @@ class NetworkMesh:
             assert sum(recv_counts) == cells_.shape[0]
 
         # Send to rank 0 which tangents that we need
-        recv_buffer = np.empty(cells_.shape[0], dtype=np.int64)
+        recv_buffer = None
+        if comm.rank == graph_rank:
+            recv_buffer = [np.empty(cells_.shape[0], dtype=np.int64), recv_counts, MPI.INT64_T]
+
         comm.Gatherv(sendbuf=original_cell_indices, recvbuf=recv_buffer, root=graph_rank)
         send_t_buffer = None
         if comm.rank == graph_rank:
             send_t_buffer = [
-                tangents[recv_buffer].flatten(),
+                tangents[recv_buffer[0]].flatten(),
                 np.array(recv_counts) * self._geom_dim,
             ]
 
