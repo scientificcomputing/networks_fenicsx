@@ -13,7 +13,7 @@ env:
 
 jobs:
 
-  build:
+  build-docs:
     name: Test on ${{ matrix.label }}
     runs-on: ubuntu-latest
     container: ghcr.io/fenics/dolfinx/dolfinx:${{ matrix.label }}
