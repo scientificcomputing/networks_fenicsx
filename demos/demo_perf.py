@@ -49,6 +49,7 @@ for n in ns:
         G = None
     network_mesh = NetworkMesh(G, cfg)
     del G
+    network_mesh.export_orientation()
     export_submeshes(network_mesh, cfg.outdir / f"n{n}")
     assembler = HydraulicNetworkAssembler(cfg, network_mesh)
     # Compute forms

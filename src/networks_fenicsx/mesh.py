@@ -18,9 +18,9 @@ import numpy.typing as npt
 
 import basix.ufl
 import ufl
+from dolfinx import fem, mesh
 from dolfinx import graph as _graph
 from dolfinx import io as _io
-from dolfinx import mesh
 from networks_fenicsx import config
 
 __all__ = ["NetworkMesh"]
@@ -70,6 +70,7 @@ class NetworkMesh:
     _submesh_facet_markers: list[mesh.MeshTags]
     _edge_meshes: list[mesh.Mesh]
     _edge_entity_maps: list[mesh.EntityMap]
+    _orientation: fem.Function
     _bifurcation_values: npt.NDArray[np.int32]
     _boundary_values: npt.NDArray[np.int32]
     _lm_mesh: mesh.Mesh | None
@@ -233,16 +234,24 @@ class NetworkMesh:
             mesh_nodes = vertex_coords.copy()
             cells = []
             cell_markers = []
+            orientations = np.array([], dtype=np.float64)
             if len(line_weights) == 0:
                 for segment in cells_array:
                     cells.append(np.array([segment[0], segment[1]], dtype=np.int64))
                     cell_markers.append(edge_coloring[(segment[0], segment[1])])
+                    start = vertex_coords[segment[0]]
+                    end = vertex_coords[segment[1]]
+                    in_order = segment[0] < segment[1]
+                    orientations = np.append(orientations, [1 if in_order else -1])
             else:
                 for segment in cells_array:
                     start_coord_pos = mesh_nodes.shape[0]
                     start = vertex_coords[segment[0]]
                     end = vertex_coords[segment[1]]
                     internal_line_coords = start * (1 - line_weights) + end * line_weights
+
+                    in_order = segment[0] < segment[1]
+                    orientations = np.append(orientations, [1 if in_order else -1])
 
                     mesh_nodes = np.vstack((mesh_nodes, internal_line_coords))
                     cells.append(np.array([segment[0], start_coord_pos], dtype=np.int64))
@@ -275,6 +284,8 @@ class NetworkMesh:
             cells_ = np.empty((0, 2), dtype=np.int64)
             mesh_nodes = np.empty((0, self._geom_dim), dtype=np.float64)
             cell_markers_ = np.empty((0,), dtype=np.int32)
+            orientations = np.empty(0, dtype=np.float64)
+
         partitioner = mesh.create_cell_partitioner(mesh.GhostMode.shared_facet)
         graph_mesh = mesh.create_mesh(
             comm,
@@ -286,24 +297,51 @@ class NetworkMesh:
         )
         self._msh = graph_mesh
 
-        local_entities, local_values = _io.distribute_entity_data(
-            self.mesh,
-            self.mesh.topology.dim,
-            cells_,
-            cell_markers_,
+        tdim = self.mesh.topology.dim
+
+        # Distribute orientations as meshtag
+        local_cells, local_orientations = _io.distribute_entity_data(
+            self.mesh, tdim, cells_, orientations
         )
 
-        # Which cells from the input mesh (rank 0) correspond to the local cells on this rank
-        original_cell_indices = self.mesh.topology.original_cell_index[
-            : self.mesh.topology.index_map(self.mesh.topology.dim).size_local
-        ]
+        meshtag_orientation = mesh.meshtags_from_entities(
+            self.mesh, tdim, _graph.adjacencylist(local_cells), local_orientations
+        )
 
-        # First compute how much data we are getting from each rank
-        send_count = original_cell_indices.size
-        recv_counts = comm.gather(send_count, root=graph_rank)
-        if comm.rank == graph_rank:
-            assert isinstance(recv_counts, Iterable)
-            assert sum(recv_counts) == cells_.shape[0]
+        # Assemble orientations function
+        orientation_space = fem.functionspace(graph_mesh, ("DG", 0))
+        self._orientation = fem.Function(orientation_space)
+        self._orientation.x.array[orientation_space.dofmap.list.flatten()] = (
+            meshtag_orientation.values
+        )
+
+        # Correct orientations for possible reorder
+        e_to_f = self.mesh.topology.connectivity(tdim, tdim - 1).array.reshape(-1, 2)
+
+        e_idx = np.arange(self.mesh.topology.index_map(tdim).size_local)
+        e = e_to_f[e_idx]
+        global_input = self.mesh.geometry.input_global_indices
+        in_order = global_input[e[:, 0]] < global_input[e[:, 1]]
+
+        # Four cases that might arise (per edge), with naming i := input_in_order, n := in_order:
+        # 1) i & n:
+        #   orientation = 1 (input=1, no action needed)
+        # 2) i & !n:
+        #   orientation = -1 (input=1, need sign flip)
+        # 3) !i & n:
+        #   orientation = -1 (input=-1, no action needed)
+        # 4) !i & !n
+        #   orientation = 1 (input=-1, need sign flip)
+        #
+        # so we need to sign flip when
+        #   (i & !n) | (!i & !n) = !n
+        self.orientation.x.array[: e_idx.size][~in_order] *= -1
+
+        self.orientation.x.scatter_forward()
+
+        local_entities, local_values = _io.distribute_entity_data(
+            self.mesh, tdim, cells_, cell_markers_
+        )
 
         self._subdomains = mesh.meshtags_from_entities(
             self.mesh,
@@ -423,6 +461,19 @@ class NetworkMesh:
                 "Entity maps have not been built yet. Call build_network_submeshes() first."
             )
         return self._edge_entity_maps
+
+    @property
+    def orientation(self):
+        """Return DG-0 field containing the tangent vector of the graph."""
+        return self._orientation
+
+    def export_orientation(self):
+        if self.cfg.export:
+            with _io.XDMFFile(self.comm, self.cfg.outdir / "mesh/orientation.xdmf", "w") as file:
+                file.write_mesh(self.mesh)
+                file.write_function(self.orientation)
+        else:
+            print("Export of tangent skipped as cfg.export is set to False.")
 
     @property
     def bifurcation_values(self) -> npt.NDArray[np.int32]:

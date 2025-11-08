@@ -219,10 +219,11 @@ class HydraulicNetworkAssembler:
         p_bc = fem.Function(P1_e)
         p_bc.interpolate(p_bc_ex.eval)
 
-        tangent = ufl.Jacobian(self._network_mesh.mesh)
-        tangent = tangent[:, 0]
-        tangent /= ufl.sqrt(ufl.inner(tangent, tangent))
+        J = ufl.Jacobian(network_mesh.mesh)
+        t = J[:, 0]
+        t /= ufl.sqrt(ufl.inner(t, t))
 
+        tangent = self._network_mesh.orientation * t
         for i, (submesh, entity_map, facet_marker) in enumerate(
             zip(
                 network_mesh.submeshes,

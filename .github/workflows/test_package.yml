@@ -37,7 +37,13 @@ jobs:
       - name: Run tests
         run: python3 -m pytest -vxs
 
-      - name: Run tests in parallel
+      - name: Run tests in parallel (np=2)
+        run: mpiexec -n 3 python3 -m pytest -v  -m "not serial"
+
+      - name: Run tests in parallel (np=3)
+        run: mpiexec -n 3 python3 -m pytest -v  -m "not serial"
+
+      - name: Run tests in parallel (np=4)
         run: mpiexec -n 4 python3 -m pytest -v  -m "not serial"
 
       - name: Run demos (sequential)
