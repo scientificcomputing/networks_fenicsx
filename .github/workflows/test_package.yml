@@ -35,10 +35,12 @@ jobs:
           python3 -m pip install .[test] --no-build-isolation --check-build-dependencies
 
       - name: Run tests
+        working-directory: tests
         run: python3 -m pytest -vxs
 
       - name: Run tests in parallel
-        run: mpiexec -n 4 python3 -m pytest -v  -m "not serial"
+        working-directory: tests
+        run: mpiexec -n 4 python3 -m pytest -v -m "not serial"
 
       - name: Run demos
         working-directory: demos
