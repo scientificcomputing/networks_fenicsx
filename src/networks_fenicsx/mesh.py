@@ -8,6 +8,8 @@ This idea stems from the Graphnics project (https://doi.org/10.48550/arXiv.2212.
 https://github.com/IngeborgGjerde/fenics-networks by Ingeborg Gjerde.
 """
 
+import xml.etree.ElementTree as ET
+from pathlib import Path
 from typing import Any, Callable, Iterable
 
 from mpi4py import MPI
@@ -72,7 +74,6 @@ class NetworkMesh:
     _edge_entity_maps: list[mesh.EntityMap]
     _tangent: fem.Function
     _bifurcation_values: npt.NDArray[np.int32]
-    _boundary_values: npt.NDArray[np.int32]
     _lm_mesh: mesh.Mesh | None
     _lm_map: mesh.EntityMap | None
 
@@ -216,7 +217,6 @@ class NetworkMesh:
         self._geom_dim = geom_dim
         self._num_edge_colors = num_edge_colors
         self._bifurcation_values = bifurcation_values
-        self._boundary_values = boundary_values
 
         # Create lookup of in and out colors for each bifurcation
         self._bifurcation_in_color = bifurcation_in_color
@@ -476,15 +476,85 @@ class NetworkMesh:
     def bifurcation_values(self) -> npt.NDArray[np.int32]:
         return self._bifurcation_values
 
-    @property
-    def boundary_values(self) -> npt.NDArray[np.int32]:
-        return self._boundary_values
-
     def in_edges(self, bifurcation: int) -> list[int]:
         return self._bifurcation_in_color[bifurcation]
 
     def out_edges(self, bifurcation: int) -> list[int]:
         return self._bifurcation_out_color[bifurcation]
+
+    def export(self, filename: Path | str):
+        """Export the mesh to an XDMF file.
+
+        Args:
+            filename: The path to the output XDMF file.
+        """
+        filename = Path(filename).with_suffix(".xdmf")
+        # Write mesh, subdomains (coloring) and bifurcation markers
+        with _io.XDMFFile(
+            self.mesh.comm,
+            filename,
+            "w",
+        ) as xdmf:
+            xdmf.write_mesh(self.mesh)
+            xdmf.write_meshtags(self.subdomains, self.mesh.geometry)
+            xdmf.write_meshtags(self._facet_markers, self.mesh.geometry)
+
+        if self.mesh.comm.rank == 0:
+            tree = ET.parse(filename)
+            root = tree.getroot()
+            color_information = ET.SubElement(root, "Information")
+            color_information.attrib["Name"] = "NumColors"
+            color_information.attrib["Value"] = f"{self._num_edge_colors:d}"
+
+            bifurcation_information = ET.SubElement(root, "Information")
+            bifurcation_information.attrib["Name"] = "BifurcationMarkers"
+            bifurcation_information.attrib["Value"] = " ".join(self._bifurcation_values.astype(str))
+
+            # Flatten bifurcation in/out edges
+            bifurcation_in_offsets = np.zeros(len(self._bifurcation_values) + 1, dtype=np.int32)
+            bifurcation_out_offsets = np.zeros(len(self._bifurcation_values) + 1, dtype=np.int32)
+            bifurcation_in_values = []
+            bifurcation_out_values = []
+            for i, value in enumerate(self._bifurcation_values):
+                bifurcation_in_offsets[i + 1] = bifurcation_in_offsets[i] + len(
+                    self.in_edges(value)
+                )
+                bifurcation_in_values.extend(self.in_edges(value))
+                bifurcation_out_offsets[i + 1] = bifurcation_out_offsets[i] + len(
+                    self.out_edges(value)
+                )
+                bifurcation_out_values.extend(self.out_edges(value))
+            bifurcation_in_offsets_information = ET.SubElement(root, "Information")
+            bifurcation_in_offsets_information.attrib["Name"] = "BifurcationInOffsets"
+            bifurcation_in_offsets_information.attrib["Value"] = " ".join(
+                bifurcation_in_offsets.astype(str)
+            )
+            bifurcation_in_values_information = ET.SubElement(root, "Information")
+            bifurcation_in_values_information.attrib["Name"] = "BifurcationInValues"
+            bifurcation_in_values_information.attrib["Value"] = " ".join(
+                np.array(bifurcation_in_values).astype(str)
+            )
+
+            bifurcation_out_values_information = ET.SubElement(root, "Information")
+            bifurcation_out_values_information.attrib["Name"] = "BifurcationOutValues"
+            bifurcation_out_values_information.attrib["Value"] = " ".join(
+                np.array(bifurcation_out_values).astype(str)
+            )
+            bifurcation_out_offsets_information = ET.SubElement(root, "Information")
+            bifurcation_out_offsets_information.attrib["Name"] = "BifurcationOutOffsets"
+            bifurcation_out_offsets_information.attrib["Value"] = " ".join(
+                bifurcation_out_offsets.astype(str)
+            )
+
+            boundary_information_in = ET.SubElement(root, "Information")
+            boundary_information_in.attrib["Name"] = "BoundaryInValue"
+            boundary_information_in.attrib["Value"] = str(self._in_marker)
+            boundary_information_out = ET.SubElement(root, "Information")
+            boundary_information_out.attrib["Name"] = "BoundaryOutValue"
+            boundary_information_out.attrib["Value"] = str(self._out_marker)
+
+            filename.write_text(ET.tostring(root, encoding="unicode"))
+        self.comm.barrier()
 
 
 def _compute_tangent(
