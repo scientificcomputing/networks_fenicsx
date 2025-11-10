@@ -326,12 +326,11 @@ class NetworkMesh:
         self._orientation.x.array[meshtag_orientation.indices] = meshtag_orientation.values
 
         # Correct orientations for possible reorder
-        e_to_f = self.mesh.topology.connectivity(tdim, tdim - 1).array.reshape(-1, 2)
-
         e_idx = np.arange(self.mesh.topology.index_map(tdim).size_local, dtype=np.int32)
-        e = e_to_f[e_idx]
+        e_geo = mesh.entities_to_geometry(self.mesh, tdim, e_idx)
+
         global_input = self.mesh.geometry.input_global_indices
-        in_order = global_input[e[:, 0]] < global_input[e[:, 1]]
+        in_order = global_input[e_geo[:, 0]] < global_input[e_geo[:, 1]]
 
         # Four cases that might arise (per edge), with naming i := input_in_order, n := in_order:
         # 1) i & n:
