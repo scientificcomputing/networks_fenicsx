@@ -318,7 +318,7 @@ class NetworkMesh:
         # Correct orientations for possible reorder
         e_to_f = self.mesh.topology.connectivity(tdim, tdim - 1).array.reshape(-1, 2)
 
-        e_idx = np.arange(self.mesh.topology.index_map(tdim).size_local)
+        e_idx = np.arange(self.mesh.topology.index_map(tdim).size_local, dtype=np.int32)
         e = e_to_f[e_idx]
         global_input = self.mesh.geometry.input_global_indices
         in_order = global_input[e[:, 0]] < global_input[e[:, 1]]
