@@ -1,10 +1,10 @@
 # Book settings
 # Learn more at https://jupyterbook.org/customize/config.html
 
-title: 1D networks simulations with FEniCSx
+title: Graphs and networks in FEniCSx
 author: Jørgen S. Dokken
 logo: "logo.png"
-copyright: "2022"
+copyright: "2025"
 
 # Force re-execution of notebooks on each build.
 # See https://jupyterbook.org/content/execute.html
@@ -13,12 +13,16 @@ execute:
 
 # Information about where the book exists on the web
 repository:
-  url: https://github.com/cdaversin/networks-fenicsx # Online location of your book
+  url: https://github.com/scientificcomputing/networks_fenicsx # Online location of your book
 
 html:
   use_issues_button: true
   use_repository_button: true
-
+  extra_footer: |
+    <div>
+        This software package has been developed by Jørgen S. Dokken while employed at Simula Research Laboratory.
+        It is licensed under the MIT License. The work has been funded by the Wellcome Trust, grant number 313298/Z/24/Z.
+    </div>
 bibtex_bibfiles:
   - references.bib
 

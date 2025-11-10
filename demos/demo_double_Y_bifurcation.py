@@ -26,6 +26,7 @@ assembler = HydraulicNetworkAssembler(cfg, network_mesh)
 assembler.compute_forms(p_bc_ex=p_bc_expr())
 
 solver = Solver(assembler)
+solver.assemble()
 sol = solver.solve()
 
 

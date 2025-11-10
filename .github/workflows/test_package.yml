@@ -3,7 +3,7 @@ name: Test package
 on:
   pull_request:
   push:
-    branches: [master]
+    branches: [main]
   workflow_dispatch:
   workflow_call:
 
@@ -35,21 +35,21 @@ jobs:
           python3 -m pip install .[test] --no-build-isolation --check-build-dependencies
 
       - name: Run tests
+        working-directory: tests
         run: python3 -m pytest -vxs
-
+      
       - name: Run tests in parallel (np=2)
-        run: mpiexec -n 3 python3 -m pytest -v  -m "not serial"
+        working-directory: tests
+        run: mpiexec -n 2 python3 -m pytest -v -m "not serial"
 
       - name: Run tests in parallel (np=3)
-        run: mpiexec -n 3 python3 -m pytest -v  -m "not serial"
+        working-directory: tests
+        run: mpiexec -n 3 python3 -m pytest -v -m "not serial"
 
       - name: Run tests in parallel (np=4)
-        run: mpiexec -n 4 python3 -m pytest -v  -m "not serial"
+        working-directory: tests
+        run: mpiexec -n 4 python3 -m pytest -v -m "not serial"
 
-      - name: Run demos (sequential)
+      - name: Run demos
         working-directory: demos
-        run: find . -iname '*.py' -exec python {}  \;
-      
-      - name: Run demos (parallel, np=3)
-        working-directory: demos
-        run: find . -iname '*.py' -exec mpiexec -np 3 python {}  \;
+        run: pytest . -sv 

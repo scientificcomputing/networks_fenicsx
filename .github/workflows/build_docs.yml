@@ -3,7 +3,7 @@ name: Build documentation with jupyter-book
 on:
   # Runs on pushes targeting the default branch
   push:
-    branches: ["master"]
+    branches: ["main"]
   workflow_call:
 
   workflow_dispatch:
@@ -13,7 +13,7 @@ env:
 
 jobs:
 
-  build:
+  build-docs:
     name: Test on ${{ matrix.label }}
     runs-on: ubuntu-latest
     container: ghcr.io/fenics/dolfinx/dolfinx:${{ matrix.label }}

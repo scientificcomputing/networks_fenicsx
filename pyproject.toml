@@ -13,9 +13,6 @@ license = { file = "LICENSE" }
 readme = "README.md"
 dependencies = ["fenics-dolfinx>=0.10.0", "networkx"]
 
-[project.scripts]
-networks_fenicsx = "networks_fenicsx.cli:main"
-
 [project.optional-dependencies]
 test = ["pytest"]
 linting = ["mypy", "flake8"]
@@ -76,7 +73,7 @@ target-version = "py310"
 
 [tool.ruff.lint]
 # Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
-select = ["E", "F", "I"]
+select = ["E", "F", "I", "ICN"]
 ignore = ["E402", "E741", "E743", "E731"]
 
 # Allow autofix for all enabled rules (when `--fix`) is provided.
@@ -86,6 +83,13 @@ unfixable = []
 # Allow unused variables when underscore-prefixed.
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 
+[tool.ruff.lint.flake8-import-conventions]
+banned-from = ["networkx", "numpy", "numpy.typing"]
+
+[tool.ruff.lint.flake8-import-conventions.extend-aliases]
+"networkx" = "nx"
+"numpy" = "np"
+"numpy.typing" = "npt"
 
 [tool.ruff.lint.mccabe]
 # Unlike Flake8, default to a complexity level of 10.

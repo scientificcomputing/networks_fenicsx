@@ -1,4 +1,4 @@
-import networkx as ntx
+import networkx as nx
 import numpy as np
 
 import dolfinx.io
@@ -9,7 +9,7 @@ from networks_fenicsx.post_processing import export_functions, extract_global_fl
 cfg = Config()
 cfg.export = True
 cfg.graph_coloring = True
-cfg.color_strategy = ntx.coloring.strategy_largest_first
+cfg.color_strategy = nx.coloring.strategy_largest_first
 cfg.outdir = "demo_arterial_tree"
 cfg.flux_degree = 1
 cfg.pressure_degree = 0

@@ -10,7 +10,7 @@ from pathlib import Path
 
 from mpi4py import MPI
 
-import networkx as ntx
+import networkx as nx
 
 
 @dataclass
@@ -24,7 +24,7 @@ class Config:
     clean: bool = True
     graph_coloring: bool = False
     # Coloring strategy based to pass to {py:func}`networkx.coloring.greedy_color`
-    color_strategy: str | typing.Callable[[ntx.Graph, dict[int, int]], Iterable[int]] = (
+    color_strategy: str | typing.Callable[[nx.Graph, dict[int, int]], Iterable[int]] = (
         "largest_first"
     )
 
