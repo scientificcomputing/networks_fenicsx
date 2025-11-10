@@ -30,10 +30,10 @@ N = 1
 
 # Create tree
 G = network_generation.make_tree(n=2, H=1, W=1)
-lcars = []
+lcars: list[float] = []
 for i in range(10):
     N *= 2
-    lcars.append(1 / N)
+    lcars.append(1.0 / N)
 
     network_mesh = NetworkMesh(G, N=N)
     assembler = HydraulicNetworkAssembler(network_mesh)
