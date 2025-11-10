@@ -279,8 +279,8 @@ class NetworkMesh:
             cells_ = np.vstack(cells).astype(np.int64)
             cell_markers_ = np.array(cell_markers, dtype=np.int32)
 
-            orientations= np.full_like(cell_markers_, 1.0, dtype=np.float64)
-            orientations[cells_[:,0] > cells_[:,1]] = -1.0
+            orientations = np.full_like(cell_markers_, 1.0, dtype=np.float64)
+            orientations[cells_[:, 0] > cells_[:, 1]] = -1.0
 
             assert cell_markers_.shape == orientations.shape
         else:
