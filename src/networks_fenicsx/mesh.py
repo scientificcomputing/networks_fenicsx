@@ -234,7 +234,6 @@ class NetworkMesh:
             mesh_nodes = vertex_coords.copy()
             cells = []
             cell_markers = []
-            orientations = np.array([], dtype=np.float64)
             if len(line_weights) == 0:
                 for segment in cells_array:
                     cells.append(np.array([segment[0], segment[1]], dtype=np.int64))
@@ -242,7 +241,6 @@ class NetworkMesh:
                     start = vertex_coords[segment[0]]
                     end = vertex_coords[segment[1]]
                     in_order = segment[0] < segment[1]
-                    orientations = np.append(orientations, [1 if in_order else -1])
             else:
                 for segment in cells_array:
                     start_coord_pos = mesh_nodes.shape[0]
@@ -277,22 +275,12 @@ class NetworkMesh:
                             dtype=np.int32,
                         )
                     )
-                    orientations = np.append(
-                        orientations, [1 if segment[0] < start_coord_pos else -1]
-                    )
-                    orientations = np.append(
-                        orientations, np.full(internal_line_coords.shape[0] - 1, 1)
-                    )
-                    orientations = np.append(
-                        orientations,
-                        [
-                            1
-                            if start_coord_pos + internal_line_coords.shape[0] - 1 < segment[1]
-                            else -1
-                        ],
-                    )
+
             cells_ = np.vstack(cells).astype(np.int64)
             cell_markers_ = np.array(cell_markers, dtype=np.int32)
+
+            orientations= np.full_like(cell_markers_, 1.0, dtype=np.float64)
+            orientations[cells_[:,0] > cells_[:,1]] = -1.0
 
             assert cell_markers_.shape == orientations.shape
         else:
