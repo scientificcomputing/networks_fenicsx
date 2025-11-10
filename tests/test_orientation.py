@@ -28,7 +28,8 @@ def linear_graph(n: int, dim: int = 2, ordered=lambda _: True) -> nx.DiGraph:
 
 @pytest.mark.parametrize("n", [30])
 @pytest.mark.parametrize("order", ["in", "reverse", "alternating"])
-def test_orientation(n: int, order: str) -> None:
+@pytest.mark.parametrize("lcar", [1, 1 / 4, 1 / 8])
+def test_orientation(n: int, order: str, lcar: int) -> None:
     if order == "in":
         ordered = lambda _: True
     elif order == "reverse":
@@ -45,6 +46,7 @@ def test_orientation(n: int, order: str) -> None:
 
     cfg = Config()
     cfg.export = False
+    cfg.lcar = lcar
 
     network_mesh = NetworkMesh(G, cfg)
 
