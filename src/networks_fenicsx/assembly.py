@@ -51,11 +51,11 @@ def compute_integration_data(
     for i, bifurcation in enumerate(network_mesh.bifurcation_values):
         for color in network_mesh.in_edges(i):
             influx_color_to_bifurcations[color] = np.append(
-                influx_color_to_bifurcations[color], int(bifurcation)
+                influx_color_to_bifurcations[color], bifurcation
             )
         for color in network_mesh.out_edges(i):
             outflux_color_to_bifurcations[color] = np.append(
-                outflux_color_to_bifurcations[color], int(bifurcation)
+                outflux_color_to_bifurcations[color], bifurcation
             )
     # Accumulate integration data for all in-edges on the same submesh.
     in_flux_entities: dict[int, npt.NDArray[np.int32]] = {}
