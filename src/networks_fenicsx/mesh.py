@@ -299,7 +299,19 @@ class NetworkMesh:
 
         tdim = self.mesh.topology.dim
 
-        # Distribute orientations as meshtag
+        # Compute subdomain tags.
+        local_entities, local_values = _io.distribute_entity_data(
+            self.mesh, tdim, cells_, cell_markers_
+        )
+
+        self._subdomains = mesh.meshtags_from_entities(
+            self.mesh,
+            self.mesh.topology.dim,
+            _graph.adjacencylist(local_entities),
+            local_values,
+        )
+
+        # Distribute orientations as meshtag.
         local_cells, local_orientations = _io.distribute_entity_data(
             self.mesh, tdim, cells_, orientations
         )
@@ -311,9 +323,7 @@ class NetworkMesh:
         # Assemble orientations function
         orientation_space = fem.functionspace(graph_mesh, ("DG", 0))
         self._orientation = fem.Function(orientation_space)
-        self._orientation.x.array[orientation_space.dofmap.list.flatten()] = (
-            meshtag_orientation.values
-        )
+        self._orientation.x.array[meshtag_orientation.indices] = meshtag_orientation.values
 
         # Correct orientations for possible reorder
         e_to_f = self.mesh.topology.connectivity(tdim, tdim - 1).array.reshape(-1, 2)
@@ -338,17 +348,6 @@ class NetworkMesh:
         self.orientation.x.array[: e_idx.size][~in_order] *= -1
 
         self.orientation.x.scatter_forward()
-
-        local_entities, local_values = _io.distribute_entity_data(
-            self.mesh, tdim, cells_, cell_markers_
-        )
-
-        self._subdomains = mesh.meshtags_from_entities(
-            self.mesh,
-            self.mesh.topology.dim,
-            _graph.adjacencylist(local_entities),
-            local_values,
-        )
 
         self._in_marker = 3 * number_of_nodes
         self._out_marker = 5 * number_of_nodes
