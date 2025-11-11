@@ -83,9 +83,7 @@ class NetworkMesh:
         self,
         graph: nx.DiGraph,
         N: int,
-        color_strategy: str
-        | Callable[[nx.Graph, dict[int, int]], Iterable[int]]
-        | None = "largest_first",
+        color_strategy: str | Callable[[nx.Graph, dict[int, int]], Iterable[int]] | None = None,
         comm: MPI.Comm = MPI.COMM_WORLD,
         graph_rank: int = 0,
     ):
