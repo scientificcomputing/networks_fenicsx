@@ -8,7 +8,7 @@ from petsc4py import PETSc
 
 import dolfinx.fem.petsc
 import dolfinx.la.petsc
-from networks_fenicsx import assembly, config
+from networks_fenicsx import assembly
 
 __all__ = ["Solver"]
 
@@ -40,7 +40,6 @@ class Solver:
 
         self._ksp = PETSc.KSP().create(self._assembler.network.comm)  # type: ignore[attr-defined]
 
-        self.cfg = config
         self._A = dolfinx.fem.petsc.create_matrix(self._assembler.bilinear_forms, kind=kind)
         kind = "nest" if self._A.getType() == "nest" else kind  # type: ignore[attr-defined]
         assert isinstance(kind, str) or kind is None

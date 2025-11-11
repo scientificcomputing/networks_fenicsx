@@ -12,6 +12,8 @@ import networkx as nx
 import numpy as np
 import numpy.typing as npt
 
+import dolfinx.common
+
 
 def tree_edges(n, r):
     # helper function for trees
@@ -36,6 +38,7 @@ def tree_edges(n, r):
                 break
 
 
+@dolfinx.common.timed("nxfx:make_tree")
 def make_tree(n: int, H: float, W: float, dim=3) -> nx.DiGraph:
     """
     Generate a symmetric tree whose root is at the origin.
@@ -151,6 +154,7 @@ def _translate(
     return p0 + length * direction / np.linalg.norm(direction, axis=-1)
 
 
+@dolfinx.common.timed("nxfx:make_arterial_tree")
 def make_arterial_tree(
     N: int,
     p0: Annotated[npt.NDArray[np.floating], Literal[(3,)]] = np.zeros(3, dtype=np.float64),

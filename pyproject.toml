@@ -8,6 +8,7 @@ description = "Solving Stokes on 1D networks with FEniCSx"
 authors = [
     { name = "Jørgen S. Dokken", email = "dokken@simula.no" },
     { name = "Cécile Daversin-Catty", email = "cecile@simula.no" },
+    { name = "Paul T. Kühner", email = "paul.kuehner@uni.lu" },
 ]
 license = { file = "LICENSE" }
 readme = "README.md"

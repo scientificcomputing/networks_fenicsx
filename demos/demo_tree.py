@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from mpi4py import MPI
 
 import matplotlib.pyplot as plt
@@ -7,7 +9,6 @@ import dolfinx
 import ufl
 from dolfinx import fem
 from networks_fenicsx import (
-    Config,
     HydraulicNetworkAssembler,
     NetworkMesh,
     Solver,
@@ -15,13 +16,8 @@ from networks_fenicsx import (
 )
 from networks_fenicsx.post_processing import export_functions, extract_global_flux
 
-cfg = Config()
-cfg.outdir = "demo_tree"
-cfg.export = True
-cfg.clean = False
-cfg.flux_degree = 1
-cfg.pressure_degree = 0
-cfg.outdir = "demo_tree"
+outdir = Path("results_tree")
+outdir.mkdir(exist_ok=True, parents=True)
 
 
 class p_bc_expr:
@@ -29,18 +25,19 @@ class p_bc_expr:
         return np.full(x.shape[1], x[1])
 
 
-lcars, min_q, max_q, mean_q = [], [], [], []
-lcar = 1.0
+min_q, max_q, mean_q = [], [], []
 
 # Create tree
 G = network_generation.make_tree(n=2, H=1, W=1)
-for i in range(10):
-    lcar /= 2.0
-    cfg.lcar = lcar
-    lcars.append(lcar)
 
-    network_mesh = NetworkMesh(G, cfg)
-    assembler = HydraulicNetworkAssembler(cfg, network_mesh)
+N = 1
+lcars: list[float] = []
+for i in range(10):
+    N *= 2
+    lcars.append(1.0 / N)
+
+    network_mesh = NetworkMesh(G, N=N)
+    assembler = HydraulicNetworkAssembler(network_mesh)
 
     assembler.compute_forms(p_bc_ex=p_bc_expr())
 
@@ -57,10 +54,10 @@ for i in range(10):
     sol = solver.solve()
 
     global_flux = extract_global_flux(network_mesh, sol)
-    export_functions(sol, outpath=cfg.outdir / f"lcar_{lcar:.5e}")
+    export_functions(sol, outpath=outdir / f"N_{N:d}")
     with dolfinx.io.VTXWriter(
         global_flux.function_space.mesh.comm,
-        cfg.outdir / f"lcar_{lcar:.5e}" / "global_flux.bp",
+        outdir / f"N_{N:d}" / "global_flux.bp",
         [global_flux],
     ) as vtx:
         vtx.write(0.0)
@@ -86,4 +83,4 @@ if network_mesh.comm.rank == 0:
     ax.plot(lcars, min_q, "-bx", label="min flux")
     ax.legend()
     ax.grid()
-    plt.savefig(cfg.outdir / "convergence_flux_tree.png")
+    plt.savefig(outdir / "convergence_flux_tree.png")

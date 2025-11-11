@@ -14,8 +14,7 @@ import numpy.typing as npt
 import basix
 import dolfinx.la.petsc as _petsc_la
 import ufl
-from dolfinx import fem
-from networks_fenicsx import config
+from dolfinx import common, fem
 
 from .mesh import NetworkMesh
 
@@ -26,6 +25,7 @@ class PressureFunction(Protocol):
     def eval(self, x: npt.NDArray[np.floating]) -> npt.NDArray[np.inexact]: ...
 
 
+@common.timed("nxfx:compute_integration_data")
 def compute_integration_data(
     network_mesh: NetworkMesh,
 ) -> tuple[dict[int, npt.NDArray[np.int32]], dict[int, npt.NDArray[np.int32]]]:
@@ -101,16 +101,15 @@ class HydraulicNetworkAssembler:
         \\frac{\\mathrm{d}}{\\mathrm{d}s} q  = f
 
     Args:
-        config: The configuration file, selecting the degree of flux and
-            pressure spaces.
         mesh: The network mesh
+        flux_degree: The polynomial degree for the flux functions
+        pressure_degree: The polynomial degree for the pressure functions
     """
 
     _network_mesh: NetworkMesh
     _flux_spaces: list[fem.FunctionSpace]
     _pressure_space: fem.FunctionSpace
     _lm_space: fem.FunctionSpace
-    _cfg: config.Config
     _in_idx: int  # Starting point for each influx interior bifurcation integral
     _out_idx: int  # Starting point for each outflux interior bifurcation integral
     _in_keys: tuple[int, ...]  # Set of unique markers for all influx conditions
@@ -118,14 +117,13 @@ class HydraulicNetworkAssembler:
     _a: list[list[fem.Form]]  # Bilinear forms
     _L: list[fem.Form]  # Linear forms
 
-    def __init__(self, config: config.Config, mesh: NetworkMesh):
+    @common.timed("nxfx:HydraulicNetworkAssembler:__init__")
+    def __init__(self, mesh: NetworkMesh, flux_degree: int = 1, pressure_degree: int = 0):
         self._network_mesh = mesh
-        self._cfg = config
         submeshes = self._network_mesh.submeshes
 
         # Flux spaces on each segment, ordered by the edge list
         # Using equispaced elements to match with legacy FEniCS
-        flux_degree = self.cfg.flux_degree
         flux_element = basix.ufl.element(
             family="Lagrange",
             cell="interval",
@@ -134,7 +132,6 @@ class HydraulicNetworkAssembler:
         )
         Pqs = [fem.functionspace(submsh, flux_element) for submsh in submeshes]
 
-        pressure_degree = self.cfg.pressure_degree
         if pressure_degree == 0:
             discontinuous = True
         else:
@@ -164,11 +161,7 @@ class HydraulicNetworkAssembler:
         for color in self._out_keys:
             self._integration_data.append((self._out_idx + color, out_flux_entities[color]))
 
-    @property
-    def cfg(self):
-        """Configuration object"""
-        return self._cfg
-
+    @common.timed("nxfx:HydraulicNetworkAssembler:compute_forms")
     def compute_forms(
         self,
         p_bc_ex: PressureFunction,
@@ -195,8 +188,12 @@ class HydraulicNetworkAssembler:
 
         test_functions = [ufl.TestFunction(fs) for fs in self.function_spaces]
         trial_functions = [ufl.TrialFunction(fs) for fs in self.function_spaces]
-        a = [[ufl.ZeroBaseForm((ui, vj)) for vj in test_functions] for ui in trial_functions]
-        L = [ufl.ZeroBaseForm((vj,)) for vj in test_functions]
+        a: list[list[ufl.Form | ufl.ZeroBaseForm | None]] = [
+            [ufl.ZeroBaseForm((ui, vj)) for vj in test_functions] for ui in trial_functions
+        ]
+        L: list[ufl.Form | ufl.ZeroBaseForm | None] = [
+            ufl.ZeroBaseForm((vj,)) for vj in test_functions
+        ]
 
         if f is None:
             f = fem.Constant(self._network_mesh.mesh, 0.0)
@@ -266,13 +263,13 @@ class HydraulicNetworkAssembler:
                 if isinstance(aij, ufl.ZeroBaseForm):
                     a[i][j] = None
         self._a = fem.form(
-            a,
+            a,  # type: ignore[arg-type]
             jit_options=jit_options,
             form_compiler_options=form_compiler_options,
             entity_maps=entity_maps,
         )
         self._L = fem.form(
-            L,
+            L,  # type: ignore[arg-type]
             jit_options=jit_options,
             form_compiler_options=form_compiler_options,
             entity_maps=entity_maps,
@@ -305,6 +302,7 @@ class HydraulicNetworkAssembler:
         """Return the underlying network mesh."""
         return self._network_mesh
 
+    @common.timed("nxfx:HydraulicNetworkAssembler:assemble")
     def assemble(
         self,
         A: PETSc.Mat | None = None,  # type: ignore[name-defined]
