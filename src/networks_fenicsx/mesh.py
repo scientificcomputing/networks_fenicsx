@@ -442,12 +442,6 @@ class NetworkMesh:
                 mesh.meshtags(edge_mesh, 0, marked_vertices, marked_values)
             )
 
-    def in_edges(self, bifurcation: int) -> list[int]:
-        return self._bifurcation_in_color[bifurcation]
-
-    def out_edges(self, bifurcation: int) -> list[int]:
-        return self._bifurcation_out_color[bifurcation]
-
     @property
     def submesh_facet_markers(self) -> list[mesh.MeshTags]:
         if self._submesh_facet_markers is None:
