@@ -10,3 +10,4 @@ libffcx*
 profiling.txt
 build
 _build
+results_*/

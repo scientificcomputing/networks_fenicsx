@@ -1,10 +1,10 @@
 import shutil
+from pathlib import Path
 
 from mpi4py import MPI
 
 from dolfinx.io import VTXWriter
 from networks_fenicsx import (
-    Config,
     HydraulicNetworkAssembler,
     NetworkMesh,
     Solver,
@@ -12,29 +12,15 @@ from networks_fenicsx import (
 )
 from networks_fenicsx.post_processing import export_functions, export_submeshes, extract_global_flux
 
-cfg = Config()
-cfg.export = True
-
-cfg.flux_degree = 1
-cfg.pressure_degree = 0
-cfg.graph_coloring = True
-cfg.color_strategy = "smallest_last"
-cfg.outdir = "demo_perf"
-
 
 class p_bc_expr:
     def eval(self, x):
         return x[1]
 
 
-# One element per segment
-cfg.lcar = 2
-# Cleaning directory only once
-# cfg.clean_dir()
-cfg.clean = False
-
-cfg.outdir.mkdir(exist_ok=True, parents=True)
-cache_dir = cfg.outdir / ".cache"
+outdir = Path("results_perf")
+outdir.mkdir(exist_ok=True, parents=True)
+cache_dir = outdir / ".cache"
 if cache_dir.exists():
     shutil.rmtree(cache_dir, ignore_errors=True)
 
@@ -47,11 +33,11 @@ for n in ns:
         G = network_generation.make_tree(n=n, H=n, W=n)
     else:
         G = None
-    network_mesh = NetworkMesh(G, cfg)
+    network_mesh = NetworkMesh(G, N=1, color_strategy="smallest_last")
     del G
     network_mesh.export_orientation()
-    export_submeshes(network_mesh, cfg.outdir / f"n{n}")
-    assembler = HydraulicNetworkAssembler(cfg, network_mesh)
+    export_submeshes(network_mesh, outdir / f"n{n}")
+    assembler = HydraulicNetworkAssembler(network_mesh, flux_degree=1, pressure_degree=0)
     # Compute forms
     assembler.compute_forms(p_bc_ex=p_bc_expr(), jit_options=jit_options)
 
@@ -60,10 +46,10 @@ for n in ns:
     solver.assemble()
     sol = solver.solve()
 
-    export_functions(sol, outpath=cfg.outdir / f"n{n}")
+    export_functions(sol, outpath=outdir / f"n{n}")
     global_flux = extract_global_flux(network_mesh, sol)
     with VTXWriter(
-        global_flux.function_space.mesh.comm, cfg.outdir / f"n{n}" / "global_flux.bp", [global_flux]
+        global_flux.function_space.mesh.comm, outdir / f"n{n}" / "global_flux.bp", [global_flux]
     ) as vtx:
         vtx.write(0.0)
     del assembler
@@ -73,14 +59,15 @@ for n in ns:
 # Rerun with cache
 for n in ns:
     if MPI.COMM_WORLD.rank == 0:
-        with (cfg.outdir / "profiling.txt").open("a") as f:
+        with (outdir / "profiling.txt").open("a") as f:
             f.write("n: " + str(n) + "\n")
 
     # Create tree
     G = network_generation.make_tree(n=n, H=n, W=n)
-    network_mesh = NetworkMesh(G, cfg)
+    network_mesh = NetworkMesh(G, N=1, color_strategy="smallest_last")
 
-    assembler = HydraulicNetworkAssembler(cfg, network_mesh)
+    assembler = HydraulicNetworkAssembler(network_mesh, flux_degree=1, pressure_degree=0)
+
     # Compute forms
     assembler.compute_forms(p_bc_ex=p_bc_expr(), jit_options=jit_options)
 

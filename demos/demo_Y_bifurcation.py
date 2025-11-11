@@ -1,6 +1,7 @@
+from pathlib import Path
+
 import dolfinx.io
 from networks_fenicsx import (
-    Config,
     HydraulicNetworkAssembler,
     NetworkMesh,
     Solver,
@@ -8,16 +9,13 @@ from networks_fenicsx import (
 )
 from networks_fenicsx.post_processing import export_functions, extract_global_flux
 
-cfg = Config()
-cfg.outdir = "demo_Y_bifurcation"
-cfg.export = True
-cfg.clean = True
-cfg.lcar = 0.25
+outdir = Path(__file__).parent / "results_Y_bifurcation"
+outdir.mkdir(exist_ok=True, parents=True)
 
 # Create Y bifurcation graph
 G = network_generation.make_tree(2, 1, 3)
 
-network_mesh = NetworkMesh(G, cfg)
+network_mesh = NetworkMesh(G, N=4)
 
 
 class p_bc_expr:
@@ -25,7 +23,7 @@ class p_bc_expr:
         return x[1]
 
 
-assembler = HydraulicNetworkAssembler(cfg, network_mesh)
+assembler = HydraulicNetworkAssembler(network_mesh)
 assembler.compute_forms(p_bc_ex=p_bc_expr())
 
 
@@ -38,8 +36,8 @@ global_flux = extract_global_flux(network_mesh, sol)
 # Export results
 with dolfinx.io.VTXWriter(
     global_flux.function_space.mesh.comm,
-    cfg.outdir / "global_flux.bp",
+    outdir / "global_flux.bp",
     [global_flux],
 ) as vtx:
     vtx.write(0.0)
-export_functions(functions=sol, outpath=cfg.outdir)
+export_functions(functions=sol, outpath=outdir)

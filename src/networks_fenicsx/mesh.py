@@ -18,23 +18,22 @@ import numpy.typing as npt
 
 import basix.ufl
 import ufl
-from dolfinx import fem, mesh
+from dolfinx import common, fem, mesh
 from dolfinx import graph as _graph
 from dolfinx import io as _io
-from networks_fenicsx import config
 
 __all__ = ["NetworkMesh"]
 
 
+@common.timed("nxfx:color_graph")
 def color_graph(
     graph: nx.DiGraph,
-    use_coloring: bool,
-    strategy: str | Callable[[nx.Graph, dict[int, int]], Iterable[int]],
+    strategy: str | Callable[[nx.Graph, dict[int, int]], Iterable[int]] | None,
 ) -> dict[tuple[int, int], int]:
     """
     Color the edges of a graph.
     """
-    if use_coloring:
+    if strategy is not None:
         undirected_edge_graph = nx.line_graph(graph.to_undirected())
         edge_coloring = nx.coloring.greedy_color(undirected_edge_graph, strategy=strategy)
     else:
@@ -49,13 +48,17 @@ class NetworkMesh:
     Stores the resulting :py:class:`mesh<dolfinx.mesh.Mesh>`,
     :py:class:`subdomains<dolfinx.mesh.MeshTags>`,
     and :py:class:`facet markers<dolfinx.mesh.MeshTags>` for bifurcations and boundary nodes.
-    Has a globally oriented tangent vector field :py:attr:`tangent`.
     Has a :py:class:`submesh<dolfinx.mesh.Mesh>` for each edge in the
     :py:class:`Networkx graph<networkx.DiGraph>`.
-    """
 
-    # Configuration
-    _cfg: config.Config
+    Args:
+        graph: The directional networkx graph to convert.
+        N: Number of elements per segment.
+        color_strategy: Strategy to use for coloring the graph edges.
+            If set to `None`, no-graphcoloring is used (not recommended).
+        comm: The MPI communicator to distribute the mesh on.
+        graph_rank: The MPI rank of the process that holds the graph.
+    """
 
     # Graph properties
     _geom_dim: int
@@ -79,13 +82,16 @@ class NetworkMesh:
     def __init__(
         self,
         graph: nx.DiGraph,
-        config: config.Config,
+        N: int,
+        color_strategy: str
+        | Callable[[nx.Graph, dict[int, int]], Iterable[int]]
+        | None = "largest_first",
         comm: MPI.Comm = MPI.COMM_WORLD,
         graph_rank: int = 0,
     ):
-        self._cfg = config
-        self._cfg.clean_dir()
-        self._build_mesh(graph, comm=comm, graph_rank=graph_rank)
+        self._build_mesh(
+            graph, N=N, color_strategy=color_strategy, comm=comm, graph_rank=graph_rank
+        )
         self._build_network_submeshes()
         self._create_lm_submesh()
 
@@ -108,11 +114,7 @@ class NetworkMesh:
         """MPI-communicator of the network mesh"""
         return self.mesh.comm
 
-    @property
-    def cfg(self) -> config.Config:
-        """The configuration setup"""
-        return self._cfg
-
+    @common.timed("nxfx:create_lm_submesh")
     def _create_lm_submesh(self):
         """Create a submesh for the Lagrange multipliers at the bifurcations.
 
@@ -133,12 +135,17 @@ class NetworkMesh:
         # Workaround until: https://github.com/FEniCS/dolfinx/pull/3974 is merged
         self._lm_mesh.topology.create_entity_permutations()
 
+    @common.timed("nxfx:build_mesh")
     def _build_mesh(
-        self, graph: nx.DiGraph | None, comm: MPI.Comm = MPI.COMM_WORLD, graph_rank: int = 0
+        self,
+        graph: nx.DiGraph | None,
+        N,
+        color_strategy: str | Callable[[nx.Graph, dict[int, int]], Iterable[int]] | None,
+        comm: MPI.Comm,
+        graph_rank: int,
     ):
         """Convert the networkx graph into a {py:class}`dolfinx.mesh.Mesh`.
 
-        The element size is controlled by `self.cfg.lcar`.
         Each segment in the networkx graph gets a unique subdomain marker.
         Each bifurcation and boundary node is marked on the facets with a unique integer.
 
@@ -148,6 +155,9 @@ class NetworkMesh:
 
         Args:
             graph: The networkx graph to convert.
+            N: Number of elements per segment.
+            color_strategy: Strategy to use for coloring the graph edges.
+                If set to `None`, no-graphcoloring is used (not recommended).
             comm: The MPI communicator to distribute the mesh on.
             graph_rank: The MPI rank of the process that holds the graph.
         """
@@ -163,7 +173,7 @@ class NetworkMesh:
         if comm.rank == graph_rank:
             assert isinstance(graph, nx.DiGraph), f"Directional graph not present of {graph_rank}"
             geom_dim = len(graph.nodes[1]["pos"])
-            edge_coloring = color_graph(graph, self.cfg.graph_coloring, self.cfg.color_strategy)
+            edge_coloring = color_graph(graph, color_strategy)
 
             num_edge_colors = len(set(edge_coloring.values()))
             cells_array = np.asarray([[u, v] for u, v in graph.edges()])
@@ -228,9 +238,7 @@ class NetworkMesh:
                 f"No directional graph present on rank {comm.rank}"
             )
             vertex_coords = np.asarray([graph.nodes[v]["pos"] for v in graph.nodes()])
-            line_weights = np.linspace(0, 1, int(np.ceil(1 / self.cfg.lcar)), endpoint=False)[1:][
-                :, None
-            ]
+            line_weights = np.linspace(0, 1, N, endpoint=False)[1:][:, None]
             mesh_nodes = vertex_coords.copy()
             cells = []
             cell_markers = []
@@ -373,20 +381,8 @@ class NetworkMesh:
 
         self.subdomains.name = "subdomains"
         self.boundaries.name = "bifurcations"
-        if self.cfg.export:
-            with _io.XDMFFile(self.mesh.comm, self.cfg.outdir / "mesh" / "mesh.xdmf", "w") as file:
-                file.write_mesh(self.mesh)
-                file.write_meshtags(self.subdomains, self.mesh.geometry)
-                file.write_meshtags(self.boundaries, self.mesh.geometry)
 
-    @property
-    def in_marker(self) -> int:
-        return self._in_marker
-
-    @property
-    def out_marker(self) -> int:
-        return self._out_marker
-
+    @common.timed("nxfx:build_network_submeshes")
     def _build_network_submeshes(self):
         """Create submeshes for each edge in the network."""
         assert self._msh is not None
@@ -422,6 +418,12 @@ class NetworkMesh:
             self._submesh_facet_markers.append(
                 mesh.meshtags(edge_mesh, 0, marked_vertices, marked_values)
             )
+
+    def in_edges(self, bifurcation: int) -> list[int]:
+        return self._bifurcation_in_color[bifurcation]
+
+    def out_edges(self, bifurcation: int) -> list[int]:
+        return self._bifurcation_out_color[bifurcation]
 
     @property
     def submesh_facet_markers(self) -> list[mesh.MeshTags]:
@@ -484,8 +486,10 @@ class NetworkMesh:
     def boundary_values(self) -> npt.NDArray[np.int32]:
         return self._boundary_values
 
-    def in_edges(self, bifurcation: int) -> list[int]:
-        return self._bifurcation_in_color[bifurcation]
+    @property
+    def in_marker(self) -> int:
+        return self._in_marker
 
-    def out_edges(self, bifurcation: int) -> list[int]:
-        return self._bifurcation_out_color[bifurcation]
+    @property
+    def out_marker(self) -> int:
+        return self._out_marker
