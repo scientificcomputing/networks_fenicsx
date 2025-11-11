@@ -470,14 +470,6 @@ class NetworkMesh:
         """Return DG-0 field containing the tangent vector of the graph."""
         return self._orientation
 
-    def export_orientation(self):
-        if self.cfg.export:
-            with _io.XDMFFile(self.comm, self.cfg.outdir / "mesh/orientation.xdmf", "w") as file:
-                file.write_mesh(self.mesh)
-                file.write_function(self.orientation)
-        else:
-            print("Export of tangent skipped as cfg.export is set to False.")
-
     @property
     def bifurcation_values(self) -> npt.NDArray[np.int32]:
         return self._bifurcation_values

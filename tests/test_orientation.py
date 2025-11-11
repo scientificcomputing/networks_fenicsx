@@ -4,7 +4,6 @@ import pytest
 
 import dolfinx
 import ufl
-from networks_fenicsx.config import Config
 from networks_fenicsx.mesh import NetworkMesh
 
 
@@ -28,8 +27,8 @@ def linear_graph(n: int, dim: int = 2, ordered=lambda _: True) -> nx.DiGraph:
 
 @pytest.mark.parametrize("n", [30])
 @pytest.mark.parametrize("order", ["in", "reverse", "alternating"])
-@pytest.mark.parametrize("lcar", [1, 1 / 4, 1 / 8])
-def test_orientation(n: int, order: str, lcar: int) -> None:
+@pytest.mark.parametrize("N", [1, 4, 8])
+def test_orientation(n: int, order: str, N: int) -> None:
     if order == "in":
         ordered = lambda _: True
     elif order == "reverse":
@@ -44,11 +43,7 @@ def test_orientation(n: int, order: str, lcar: int) -> None:
     # nx.draw(G)
     # plt.show()
 
-    cfg = Config()
-    cfg.export = False
-    cfg.lcar = lcar
-
-    network_mesh = NetworkMesh(G, cfg)
+    network_mesh = NetworkMesh(G, N=N)
 
     J = ufl.Jacobian(network_mesh.mesh)
     t = J[:, 0]

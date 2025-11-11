@@ -3,7 +3,7 @@ from pathlib import Path
 
 from mpi4py import MPI
 
-from dolfinx.io import VTXWriter
+from dolfinx.io import VTXWriter, XDMFFile
 from networks_fenicsx import (
     HydraulicNetworkAssembler,
     NetworkMesh,
@@ -35,7 +35,9 @@ for n in ns:
         G = None
     network_mesh = NetworkMesh(G, N=1, color_strategy="smallest_last")
     del G
-    network_mesh.export_orientation()
+    with XDMFFile(network_mesh.comm, outdir / "mesh" / "orientation.xdmf", "w") as file:
+        file.write_mesh(network_mesh.mesh)
+        file.write_function(network_mesh.orientation)
     export_submeshes(network_mesh, outdir / f"n{n}")
     assembler = HydraulicNetworkAssembler(network_mesh, flux_degree=1, pressure_degree=0)
     # Compute forms
