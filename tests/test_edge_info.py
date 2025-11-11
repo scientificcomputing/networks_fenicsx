@@ -2,11 +2,11 @@ import networkx as nx
 import numpy as np
 import pytest
 
-from networks_fenicsx import Config, NetworkMesh
+from networks_fenicsx import NetworkMesh
 
 
-@pytest.mark.parametrize("lcar", [0.1, 0.05])
-def test_edge_info(lcar: float):
+@pytest.mark.parametrize("N", [10, 50])
+def test_edge_info(N: int):
     # Create manual graph where we have five bifurcations.
     # One inlet (0) -> (1) -> (7).
     G = nx.DiGraph()
@@ -32,9 +32,7 @@ def test_edge_info(lcar: float):
     G.add_edge(7, 4)
     G.add_edge(5, 6)
 
-    config = Config()
-    config.lcar = lcar
-    network_mesh = NetworkMesh(G, config)
+    network_mesh = NetworkMesh(G, N=N)
     assert len(network_mesh.bifurcation_values) == 6
     # Bifurcation values are sorted in increasing order
     np.testing.assert_allclose([1, 2, 3, 4, 5, 7], network_mesh.bifurcation_values)
