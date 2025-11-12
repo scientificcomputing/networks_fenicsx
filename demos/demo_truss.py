@@ -27,6 +27,7 @@ def get_warren_bridge(
 
     # TODO: arc
     top = base[:-1] + np.array([spacing / 2, 2, 0])
+    # top = base[:-1] + np.sqrt(radius**2 - )
 
     arc_center = np.array([0, -offset, 0], dtype=np.float64)
 
