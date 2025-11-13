@@ -5,15 +5,15 @@
 # We start by importing the necessary modules
 
 # +
-import shutil
 import datetime
-import pandas as pd
-import seaborn
-import matplotlib.pyplot as plt
-
+import shutil
 from pathlib import Path
 
 from mpi4py import MPI
+
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
 
 from dolfinx.common import timing
 from dolfinx.io import VTXWriter
@@ -24,18 +24,16 @@ from networks_fenicsx import (
     network_generation,
 )
 from networks_fenicsx.post_processing import export_functions, extract_global_flux
+
 # -
 
 # Next, we define the boundary condition that we will prescribe for the pressure.
 # Here, we let $p=y$.
 
 
-class PressureBC:
-    def eval(self, x):
-        return x[1]
+def p_bc(x):
+    return x[1]
 
-
-p_bc = PressureBC()
 
 # Next, as we will evaluate the performance of the assemble, we will check it with and
 # without a cache of the compiled C-kernels.
@@ -61,7 +59,7 @@ tracked_calls = [
     "nxfx:NetworkMesh:create_lm_submesh",
     "nxfx:Solver:solve",
 ]
-timings = {
+timings: dict[str, dict[int, float]] = {
     "BuildMesh": {},
     "BuildSubMeshes": {},
     "ComputeIntegrationData": {},
@@ -175,7 +173,7 @@ for operation in timings.keys():
 dataframe = pd.DataFrame(flattened_data, columns=["Operation", "NumSegments", "Time"])
 
 fig, ax = plt.subplots()
-plot = seaborn.lineplot(dataframe, x="NumSegments", y="Time", hue="Operation", ax=ax)
+plot = sns.lineplot(data=dataframe, x="NumSegments", y="Time", hue="Operation", ax=ax)
 ax.set(xscale="log", yscale="log")
 ax.grid(True)
 fig.savefig("demo_perf.png", bbox_inches="tight")
