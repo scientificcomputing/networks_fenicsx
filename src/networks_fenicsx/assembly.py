@@ -215,7 +215,7 @@ class HydraulicNetworkAssembler:
         # Assemble edge contributions to a and L
         num_qs = len(self._network_mesh.submeshes)
         P1_e = fem.functionspace(network_mesh.mesh, ("Lagrange", 1))
-
+        p_bc = fem.Function(P1_e)
         if isinstance(p_bc_ex, ufl.core.expr.Expr):
             try:
                 expr = fem.Expression(p_bc_ex, P1_e.element.interpolation_points())  # type: ignore[operator]
@@ -230,7 +230,6 @@ class HydraulicNetworkAssembler:
         t /= ufl.sqrt(ufl.inner(t, t))
 
         tangent = self._network_mesh.orientation * t
-        tangent = self._network_mesh.tangent
         for i, (submesh, entity_map, facet_marker) in enumerate(
             zip(
                 network_mesh.submeshes,
