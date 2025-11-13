@@ -160,7 +160,9 @@ class HydraulicNetworkAssembler:
     @common.timed("nxfx:HydraulicNetworkAssembler:compute_forms")
     def compute_forms(
         self,
-        p_bc_ex: PressureFunction,
+        p_bc_ex: typing.Callable[[npt.NDArray[np.floating]], npt.NDArray[np.inexact]]
+        | fem.Expression
+        | ufl.core.expr.Expr,
         f: ufl.core.expr.Expr | None = None,
         jit_options: dict | None = None,
         form_compiler_options: dict | None = None,
@@ -214,7 +216,15 @@ class HydraulicNetworkAssembler:
         num_qs = len(self._network_mesh.submeshes)
         P1_e = fem.functionspace(network_mesh.mesh, ("Lagrange", 1))
         p_bc = fem.Function(P1_e)
-        p_bc.interpolate(p_bc_ex.eval)
+        if isinstance(p_bc_ex, ufl.core.expr.Expr):
+            try:
+                expr = fem.Expression(p_bc_ex, P1_e.element.interpolation_points())  # type: ignore[operator]
+            except TypeError:
+                expr = fem.Expression(p_bc_ex, P1_e.element.interpolation_points)
+            p_bc.interpolate(expr)
+        else:
+            p_bc.interpolate(p_bc_ex)
+
         tangent = self._network_mesh.tangent
         for i, (submesh, entity_map, facet_marker) in enumerate(
             zip(

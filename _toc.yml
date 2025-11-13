@@ -1,0 +1,13 @@
+format: jb-book
+root: index
+
+parts:
+  
+  - caption: Performance analysis
+    chapters:
+    - file: "demos/demo_perf"
+  
+  - caption: Python API
+    chapters:
+    - file: "docs/api"
+

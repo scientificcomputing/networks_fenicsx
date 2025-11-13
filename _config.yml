@@ -3,13 +3,16 @@
 
 title: Graphs and networks in FEniCSx
 author: Jørgen S. Dokken
-logo: "logo.png"
+logo: "docs/logo.png"
 copyright: "2025"
 
 # Force re-execution of notebooks on each build.
 # See https://jupyterbook.org/content/execute.html
 execute:
   execute_notebooks: cache
+  timeout: 1800
+
+only_build_toc_files: true
 
 # Information about where the book exists on the web
 repository:
@@ -24,7 +27,7 @@ html:
         It is licensed under the MIT License. The work has been funded by the Wellcome Trust, grant number 313298/Z/24/Z.
     </div>
 bibtex_bibfiles:
-  - references.bib
+  - docs/references.bib
 
 parse:
   myst_enable_extensions:
@@ -65,3 +68,5 @@ sphinx:
       .py:
         - jupytext.reads
         - fmt: py
+
+exclude_patterns: [".pytest_cache/*"]

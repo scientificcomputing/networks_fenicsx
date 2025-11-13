@@ -1,8 +1,7 @@
 from pathlib import Path
 
-import numpy as np
-
 import dolfinx.io
+import ufl
 from networks_fenicsx import HydraulicNetworkAssembler, NetworkMesh, Solver, network_generation
 from networks_fenicsx.post_processing import export_functions, extract_global_flux
 
@@ -12,13 +11,10 @@ G = network_generation.make_tree(2, 3.1, 7.3)
 network_mesh = NetworkMesh(G, N=5)
 
 
-class p_bc_expr:
-    def eval(self, x):
-        return np.full(x.shape[1], x[0])
-
+x = ufl.SpatialCoordinate(network_mesh.mesh)
 
 assembler = HydraulicNetworkAssembler(network_mesh)
-assembler.compute_forms(p_bc_ex=p_bc_expr())
+assembler.compute_forms(p_bc_ex=x[0])
 
 solver = Solver(assembler)
 solver.assemble()

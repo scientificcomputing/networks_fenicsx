@@ -17,7 +17,13 @@ dependencies = ["fenics-dolfinx>=0.10.0", "networkx"]
 [project.optional-dependencies]
 test = ["pytest"]
 linting = ["mypy", "flake8"]
-docs = ["jupyter-book<2.0.0", "jupytext", "sphinx-codeautolink"]
+docs = [
+    "jupyter-book<2.0.0",
+    "jupytext",
+    "sphinx-codeautolink",
+    "networks_fenicsx[demos]",
+]
+demos = ["pandas", "seaborn"]
 all = [
     "networks_fenicsx[test]",
     "networks_fenicsx[linting]",

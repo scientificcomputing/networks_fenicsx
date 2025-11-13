@@ -32,7 +32,7 @@ jobs:
 
       - name: Install package
         run: |
-          python3 -m pip install .[test] --no-build-isolation --check-build-dependencies
+          python3 -m pip install .[test,demos] --no-build-isolation --check-build-dependencies
 
       - name: Run tests
         working-directory: tests
