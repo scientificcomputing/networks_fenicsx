@@ -9,9 +9,9 @@ paths = list(Path(__file__).parent.glob("*.py"))
 
 @pytest.mark.parametrize("path", paths, ids=[d.name for d in paths])
 def test(path) -> None:
-    subprocess.run([sys.executable, path])
+    subprocess.run([sys.executable, path], check=True)
 
 
 @pytest.mark.parametrize("path", paths, ids=[d.name for d in paths])
 def test_np3(path) -> None:
-    subprocess.run(["mpiexec", "-np", "3", sys.executable, path])
+    subprocess.run(["mpiexec", "-np", "3", sys.executable, path], check=True)

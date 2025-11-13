@@ -20,9 +20,8 @@ outdir = Path("results_tree")
 outdir.mkdir(exist_ok=True, parents=True)
 
 
-class p_bc_expr:
-    def eval(self, x):
-        return np.full(x.shape[1], x[1])
+def p_bc(x):
+    return x[1]
 
 
 min_q, max_q, mean_q = [], [], []
@@ -39,7 +38,7 @@ for i in range(10):
     network_mesh = NetworkMesh(G, N=N)
     assembler = HydraulicNetworkAssembler(network_mesh)
 
-    assembler.compute_forms(p_bc_ex=p_bc_expr())
+    assembler.compute_forms(p_bc_ex=p_bc)
 
     solver = Solver(
         assembler,

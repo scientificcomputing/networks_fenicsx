@@ -9,9 +9,8 @@ from networks_fenicsx.network_generation import make_arterial_tree
 from networks_fenicsx.post_processing import export_functions, extract_global_flux
 
 
-class p_bc_expr:
-    def eval(self, x):
-        return x[1]
+def p_bc_expr(x):
+    return x[1]
 
 
 n = 5
@@ -20,7 +19,7 @@ G = make_arterial_tree(N=n, direction=np.array([0.1, 1, 0]))
 network_mesh = NetworkMesh(G, N=40, color_strategy=nx.coloring.strategy_largest_first)
 assembler = HydraulicNetworkAssembler(network_mesh, flux_degree=1, pressure_degree=0)
 # Compute forms
-assembler.compute_forms(p_bc_ex=p_bc_expr())
+assembler.compute_forms(p_bc_ex=p_bc_expr)
 # Solve
 
 solver = Solver(assembler, kind="nest")
