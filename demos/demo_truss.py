@@ -7,7 +7,7 @@ import networks_fenicsx
 
 
 def get_warren_bridge(
-    length: float = 20.0, radius: float = 40.0, offset: float = 10.0, spacing: float = 5.0
+    length: float = 20.0, radius: float = 20.0, offset: float = 10.0, spacing: float = 2.0
 ):
     """
     length:
@@ -25,9 +25,8 @@ def get_warren_bridge(
     base = np.linspace(base_start, base_end, int(((base_end[0]-base_start[0])/spacing)))
     base = np.append(np.flip(-base, 0), base, axis=0)
 
-    # TODO: arc
-    top = base[:-1] + np.array([spacing / 2, 2, 0])
-    # top = base[:-1] + np.sqrt(radius**2 - )
+    top = base[:-1] + np.array([spacing / 2, 0, 0])
+    top[:,1] = np.sqrt(radius**2 - top[:,0]**2) - offset
 
     arc_center = np.array([0, -offset, 0], dtype=np.float64)
 
