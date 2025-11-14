@@ -22,7 +22,7 @@ def get_warren_bridge(
 
     base_start = np.array([spacing / 2, 0, 0], dtype=np.float64)
     base_end = np.array([np.sqrt(radius**2 - offset**2), 0, 0], dtype=np.float64)
-    base = np.linspace(base_start, base_end, 10)
+    base = np.linspace(base_start, base_end, int(((base_end[0]-base_start[0])/spacing)))
     base = np.append(np.flip(-base, 0), base, axis=0)
 
     # TODO: arc
