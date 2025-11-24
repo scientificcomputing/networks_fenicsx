@@ -35,7 +35,7 @@ for n in ns:
         G = None
     network_mesh = NetworkMesh(G, N=1, color_strategy="smallest_last")
     del G
-    network_mesh.export_tangent()
+    # network_mesh.export()
     export_submeshes(network_mesh, outdir / f"n{n}")
     assembler = HydraulicNetworkAssembler(network_mesh, flux_degree=1, pressure_degree=0)
     # Compute forms
