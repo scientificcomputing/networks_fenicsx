@@ -7,7 +7,7 @@ import networks_fenicsx
 
 
 def get_warren_bridge(
-    length: float = 20.0, radius: float = 20.0, offset: float = 10.0, spacing: float = 2.0
+    radius: float = 40.0, offset: float = 20.0, spacing: float = 5.0
 ):
     """
     length:
