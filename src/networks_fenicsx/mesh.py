@@ -8,6 +8,7 @@ This idea stems from the Graphnics project (https://doi.org/10.48550/arXiv.2212.
 https://github.com/IngeborgGjerde/fenics-networks by Ingeborg Gjerde.
 """
 
+import inspect
 from typing import Any, Callable, Iterable
 
 from mpi4py import MPI
@@ -292,14 +293,19 @@ class NetworkMesh:
             mesh_nodes = np.empty((0, self._geom_dim), dtype=np.float64)
             cell_markers_ = np.empty((0,), dtype=np.int32)
         tangents = tangents[:, : self._geom_dim].copy()
-        partitioner = mesh.create_cell_partitioner(mesh.GhostMode.shared_facet)
+        sig = inspect.signature(mesh.create_cell_partitioner)
+        kwargs = {}
+        if "max_facet_to_cell_links" in list(sig.parameters.keys()):
+            kwargs["max_facet_to_cell_links"] = np.max(max_connections)
+        partitioner = mesh.create_cell_partitioner(mesh.GhostMode.shared_facet, **kwargs)
+
         graph_mesh = mesh.create_mesh(
             comm,
             x=mesh_nodes,
             cells=cells_,
             e=ufl.Mesh(basix.ufl.element("Lagrange", "interval", 1, shape=(self._geom_dim,))),
             partitioner=partitioner,
-            max_facet_to_cell_links=np.max(max_connections),
+            **kwargs,
         )
         self._msh = graph_mesh
 
