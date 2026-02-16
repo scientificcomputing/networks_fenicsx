@@ -294,10 +294,14 @@ class NetworkMesh:
             cell_markers_ = np.empty((0,), dtype=np.int32)
         tangents = tangents[:, : self._geom_dim].copy()
         sig = inspect.signature(mesh.create_cell_partitioner)
+        part_kwargs = {}
+        if "max_facet_to_cell_links" in list(sig.parameters.keys()):
+            part_kwargs["max_facet_to_cell_links"] = np.max(max_connections)
+        partitioner = mesh.create_cell_partitioner(mesh.GhostMode.shared_facet, **part_kwargs)
+        sig = inspect.signature(mesh.create_mesh)
         kwargs = {}
         if "max_facet_to_cell_links" in list(sig.parameters.keys()):
-            kwargs["max_facet_to_cell_links"] = np.max(max_connections)
-        partitioner = mesh.create_cell_partitioner(mesh.GhostMode.shared_facet, **kwargs)
+            kwargs["max_fact_to_cell_links"] = np.max(max_connections)
 
         graph_mesh = mesh.create_mesh(
             comm,
