@@ -301,7 +301,7 @@ class NetworkMesh:
         sig = inspect.signature(mesh.create_mesh)
         kwargs = {}
         if "max_facet_to_cell_links" in list(sig.parameters.keys()):
-            kwargs["max_fact_to_cell_links"] = np.max(max_connections)
+            kwargs["max_facet_to_cell_links"] = np.max(max_connections)
 
         graph_mesh = mesh.create_mesh(
             comm,
