@@ -164,6 +164,7 @@ class HydraulicNetworkAssembler:
         | fem.Expression
         | ufl.core.expr.Expr,
         f: ufl.core.expr.Expr | None = None,
+        R: ufl.core.expr.Expr | None = None,
         jit_options: dict | None = None,
         form_compiler_options: dict | None = None,
     ):
@@ -195,6 +196,10 @@ class HydraulicNetworkAssembler:
 
         if f is None:
             f = fem.Constant(self._network_mesh.mesh, 0.0)
+
+        if R is None:
+            R = fem.Constant(self._network_mesh.mesh, 1.0)
+
         # Fluxes on each branch
         qs = []
         vs = []
@@ -225,6 +230,8 @@ class HydraulicNetworkAssembler:
         else:
             p_bc.interpolate(p_bc_ex)
 
+        dx_global = ufl.Measure("dx", domain=network_mesh.mesh)
+
         tangent = self._network_mesh.tangent
         for i, (submesh, entity_map, facet_marker) in enumerate(
             zip(
@@ -236,7 +243,7 @@ class HydraulicNetworkAssembler:
             dx_edge = ufl.Measure("dx", domain=submesh)
             ds_edge = ufl.Measure("ds", domain=submesh, subdomain_data=facet_marker)
 
-            a[i][i] += qs[i] * vs[i] * dx_edge
+            a[i][i] += R * qs[i] * vs[i] * dx_edge
             a[num_qs][i] += phi * ufl.dot(ufl.grad(qs[i]), tangent) * dx_edge
             a[i][num_qs] = -p * ufl.dot(ufl.grad(vs[i]), tangent) * dx_edge
 
@@ -244,6 +251,8 @@ class HydraulicNetworkAssembler:
             L[i] = p_bc * vs[i] * ds_edge(network_mesh.in_marker) - p_bc * vs[i] * ds_edge(
                 network_mesh.out_marker
             )
+
+        L[num_qs] += f * phi * dx_global
 
         # Multiplier mesh and flux share common parent mesh.
         # We create unique integration entities for each in and out branch
