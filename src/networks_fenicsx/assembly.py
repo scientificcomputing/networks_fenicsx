@@ -229,7 +229,7 @@ class HydraulicNetworkAssembler:
             p_bc.interpolate(expr)
         else:
             p_bc.interpolate(p_bc_ex)
-        
+
         dx_global = ufl.Measure("dx", domain=network_mesh.mesh)
 
         J = ufl.Jacobian(network_mesh.mesh)

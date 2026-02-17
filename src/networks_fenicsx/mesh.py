@@ -9,7 +9,7 @@ https://github.com/IngeborgGjerde/fenics-networks by Ingeborg Gjerde.
 """
 
 import inspect
-from typing import Any, Callable, Iterable
+from typing import Callable, Iterable
 
 from mpi4py import MPI
 
@@ -296,7 +296,6 @@ class NetworkMesh:
             cell_markers_ = np.empty((0,), dtype=np.int32)
             orientations = np.empty(0, dtype=np.float64)
 
-        tangents = tangents[:, : self._geom_dim].copy()
         sig = inspect.signature(mesh.create_cell_partitioner)
         part_kwargs = {}
         if "max_facet_to_cell_links" in list(sig.parameters.keys()):
