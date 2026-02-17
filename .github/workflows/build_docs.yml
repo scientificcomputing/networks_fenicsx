@@ -9,10 +9,9 @@ on:
   workflow_dispatch:
 env:
   # Directory that will be published on github pages
-  PUBLISH_DIR: ./docs/_build/html
+  PUBLISH_DIR: ./_build/html
 
 jobs:
-
   build-docs:
     name: Test on ${{ matrix.label }}
     runs-on: ubuntu-latest
@@ -20,12 +19,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        label: [
-          "stable",
-          "nightly"
-        ]
+        label: ["stable", "nightly"]
     env:
-      PUBLISH_DIR: ./docs/_build/html
       PYVISTA_OFF_SCREEN: false
       PYVISTA_JUPYTER_BACKEND: "html"
 
@@ -33,13 +28,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-
       - name: Install dependencies
         run: python3 -m pip install ".[docs]"
 
       - name: Build docs
-        run: 	jupyter book build --keep-going docs
-
+        run: jupyter book build --keep-going .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v5
