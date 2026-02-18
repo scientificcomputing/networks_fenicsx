@@ -104,6 +104,7 @@ class Solver:
     def ksp(self) -> PETSc.KSP:  # type: ignore[name-defined]
         return self._ksp
 
+    @dolfinx.common.timed("nxfx:Solver:solve")
     def solve(
         self, functions: list[dolfinx.fem.Function] | None = None
     ) -> list[dolfinx.fem.Function]:

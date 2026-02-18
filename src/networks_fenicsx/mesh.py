@@ -8,6 +8,7 @@ This idea stems from the Graphnics project (https://doi.org/10.48550/arXiv.2212.
 https://github.com/IngeborgGjerde/fenics-networks by Ingeborg Gjerde.
 """
 
+import inspect
 from typing import Any, Callable, Iterable
 
 from mpi4py import MPI
@@ -112,7 +113,7 @@ class NetworkMesh:
         """MPI-communicator of the network mesh"""
         return self.mesh.comm
 
-    @common.timed("nxfx:create_lm_submesh")
+    @common.timed("nxfx:NetworkMesh:create_lm_submesh")
     def _create_lm_submesh(self):
         """Create a submesh for the Lagrange multipliers at the bifurcations.
 
@@ -133,7 +134,7 @@ class NetworkMesh:
         # Workaround until: https://github.com/FEniCS/dolfinx/pull/3974 is merged
         self._lm_mesh.topology.create_entity_permutations()
 
-    @common.timed("nxfx:build_mesh")
+    @common.timed("nxfx:NetworkMesh:build_mesh")
     def _build_mesh(
         self,
         graph: nx.DiGraph | None,
@@ -321,14 +322,23 @@ class NetworkMesh:
             mesh_nodes = np.empty((0, self._geom_dim), dtype=np.float64)
             cell_markers_ = np.empty((0,), dtype=np.int32)
         tangents = tangents[:, : self._geom_dim].copy()
-        partitioner = mesh.create_cell_partitioner(mesh.GhostMode.shared_facet)
+        sig = inspect.signature(mesh.create_cell_partitioner)
+        part_kwargs = {}
+        if "max_facet_to_cell_links" in list(sig.parameters.keys()):
+            part_kwargs["max_facet_to_cell_links"] = np.max(max_connections)
+        partitioner = mesh.create_cell_partitioner(mesh.GhostMode.shared_facet, **part_kwargs)
+        sig = inspect.signature(mesh.create_mesh)
+        kwargs = {}
+        if "max_facet_to_cell_links" in list(sig.parameters.keys()):
+            kwargs["max_facet_to_cell_links"] = np.max(max_connections)
+
         graph_mesh = mesh.create_mesh(
             comm,
             x=mesh_nodes,
             cells=cells_,
             e=ufl.Mesh(basix.ufl.element("Lagrange", "interval", 1, shape=(self._geom_dim,))),
             partitioner=partitioner,
-            max_facet_to_cell_links=np.max(max_connections),
+            **kwargs,
         )
         self._msh = graph_mesh
 
@@ -405,7 +415,7 @@ class NetworkMesh:
         self.subdomains.name = "subdomains"
         self.boundaries.name = "bifurcations"
 
-    @common.timed("nxfx:build_network_submeshes")
+    @common.timed("nxfx:NetworkMesh:build_network_submeshes")
     def _build_network_submeshes(self):
         """Create submeshes for each edge in the network."""
         assert self._msh is not None

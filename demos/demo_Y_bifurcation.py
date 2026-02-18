@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import dolfinx.io
+import ufl
 from networks_fenicsx import (
     HydraulicNetworkAssembler,
     NetworkMesh,
@@ -17,14 +18,9 @@ G = network_generation.make_tree(2, 1, 3)
 
 network_mesh = NetworkMesh(G, N=4)
 
-
-class p_bc_expr:
-    def eval(self, x):
-        return x[1]
-
-
+x = ufl.SpatialCoordinate(network_mesh.mesh)
 assembler = HydraulicNetworkAssembler(network_mesh)
-assembler.compute_forms(p_bc_ex=p_bc_expr())
+assembler.compute_forms(p_bc_ex=x[1])
 
 
 solver = Solver(assembler)
