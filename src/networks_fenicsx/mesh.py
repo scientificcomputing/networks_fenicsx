@@ -64,8 +64,9 @@ class NetworkMesh:
     # Graph properties
     _geom_dim: int
     _num_edge_colors: int
-    _bifurcation_in_color: dict[int, list[int]]
-    _bifurcation_out_color: dict[int, list[int]]
+    _bifurcation_values: npt.NDArray[np.int32]
+    _bifurcation_in_color: _graph.AdjacencyList
+    _bifurcation_out_color: _graph.AdjacencyList
 
     # Mesh properties
     _msh: mesh.Mesh | None
@@ -75,7 +76,6 @@ class NetworkMesh:
     _edge_meshes: list[mesh.Mesh]
     _edge_entity_maps: list[mesh.EntityMap]
     _tangent: fem.Function
-    _bifurcation_values: npt.NDArray[np.int32]
     _boundary_values: npt.NDArray[np.int32]
     _lm_mesh: mesh.Mesh | None
     _lm_map: mesh.EntityMap | None
@@ -167,8 +167,10 @@ class NetworkMesh:
         bifurcation_values = None
         boundary_values = None
         number_of_nodes = None
-        bifurcation_in_color: dict[int, list[int]] | None = None
-        bifurcation_out_color: dict[int, list[int]] | None = None
+        bifurcation_in_color: npt.NDArray[np.int32] | None = None
+        bifurcation_in_offsets: npt.NDArray[np.int32] | None = None
+        bifurcation_out_color: npt.NDArray[np.int32] | None = None
+        bifurcation_out_offsets: npt.NDArray[np.int32] | None = None
         if comm.rank == graph_rank:
             assert isinstance(graph, nx.DiGraph), f"Directional graph not present of {graph_rank}"
             geom_dim = len(graph.nodes[1]["pos"])
@@ -184,29 +186,41 @@ class NetworkMesh:
             boundary_values = np.flatnonzero(nodes_with_degree == 1)
             max_connections = np.max(nodes_with_degree)
 
-            bifurcation_in_color = {}
-            bifurcation_out_color = {}
+            bifurcation_in_color = np.empty(0, dtype=np.int32)
+            bifurcation_in_offsets = np.zeros(1, dtype=np.int32)
+            bifurcation_out_color = np.empty(0, dtype=np.int32)
+            bifurcation_out_offsets = np.zeros(1, dtype=np.int32)
             for bifurcation in bifurcation_values:
                 in_edges = graph.in_edges(bifurcation)
-                bifurcation_in_color[int(bifurcation)] = []
-                for edge in in_edges:
-                    bifurcation_in_color[int(bifurcation)].append(edge_coloring[edge])
+                bifurcation_in_offsets = np.append(
+                    bifurcation_in_offsets, len(bifurcation_in_color) + len(in_edges)
+                )
+                bifurcation_in_color = np.append(
+                    bifurcation_in_color, [edge_coloring[edge] for edge in in_edges]
+                )
                 out_edges = graph.out_edges(bifurcation)
-                bifurcation_out_color[int(bifurcation)] = []
-                for edge in out_edges:
-                    bifurcation_out_color[int(bifurcation)].append(edge_coloring[edge])
+                bifurcation_out_offsets = np.append(
+                    bifurcation_out_offsets, len(bifurcation_out_color) + len(out_edges)
+                )
+                bifurcation_out_color = np.append(
+                    bifurcation_out_color, [edge_coloring[edge] for edge in out_edges]
+                )
 
             # Map boundary_values to inlet and outlet data from graph
-            boundary_in_nodes = []
-            boundary_out_nodes = []
+            boundary_in_nodes = np.empty(0, dtype=np.int32)
+            boundary_out_nodes = np.empty(0, dtype=np.int32)
             for boundary in boundary_values:
                 in_edges = graph.in_edges(boundary)
                 out_edges = graph.out_edges(boundary)
                 assert len(in_edges) + len(out_edges) == 1, "Boundary node with multiple edges"
                 if len(in_edges) == 1:
-                    boundary_in_nodes.append(int(boundary))
+                    boundary_in_nodes = (
+                        np.append(boundary_in_nodes, np.int32(boundary)).flatten().astype(np.int32)
+                    )
                 else:
-                    boundary_out_nodes.append(int(boundary))
+                    boundary_out_nodes = (
+                        np.append(boundary_out_nodes, np.int32(boundary)).flatten().astype(np.int32)
+                    )
 
         comm.bcast(num_edge_colors, root=graph_rank)
         num_edge_colors, number_of_nodes, max_connections, geom_dim = comm.bcast(
@@ -217,8 +231,19 @@ class NetworkMesh:
             (bifurcation_values, boundary_values), root=graph_rank
         )
         comm.barrier()
-        bifurcation_in_color, bifurcation_out_color = comm.bcast(
-            (bifurcation_in_color, bifurcation_out_color), root=graph_rank
+        (
+            bifurcation_in_color,
+            bifurcation_in_offsets,
+            bifurcation_out_color,
+            bifurcation_out_offsets,
+        ) = comm.bcast(
+            (
+                bifurcation_in_color,
+                bifurcation_in_offsets,
+                bifurcation_out_color,
+                bifurcation_out_offsets,
+            ),
+            root=graph_rank,
         )
         comm.barrier()
 
@@ -228,8 +253,12 @@ class NetworkMesh:
         self._boundary_values = boundary_values
 
         # Create lookup of in and out colors for each bifurcation
-        self._bifurcation_in_color = bifurcation_in_color
-        self._bifurcation_out_color = bifurcation_out_color
+        self._bifurcation_in_color = _graph.adjacencylist(
+            bifurcation_in_color, bifurcation_in_offsets
+        )
+        self._bifurcation_out_color = _graph.adjacencylist(
+            bifurcation_out_color, bifurcation_out_offsets
+        )
 
         # Generate mesh
         tangents: npt.NDArray[np.float64] = np.empty((0, self._geom_dim), dtype=np.float64)
@@ -423,12 +452,6 @@ class NetworkMesh:
                 mesh.meshtags(edge_mesh, 0, marked_vertices, marked_values)
             )
 
-    def in_edges(self, bifurcation: int) -> list[int]:
-        return self._bifurcation_in_color[bifurcation]
-
-    def out_edges(self, bifurcation: int) -> list[int]:
-        return self._bifurcation_out_color[bifurcation]
-
     @property
     def submesh_facet_markers(self) -> list[mesh.MeshTags]:
         if self._submesh_facet_markers is None:
@@ -481,6 +504,23 @@ class NetworkMesh:
     @property
     def boundary_values(self) -> npt.NDArray[np.int32]:
         return self._boundary_values
+
+    def in_edges(self, bifurcation_idx: int) -> npt.NDArray[np.int32 | np.int64]:
+        """Return the list of in-edge colors for a given bifurcation node.
+        Index is is the index of the bifurcation in {py:meth}`self.bifurcation_values`."""
+        assert bifurcation_idx < len(self.bifurcation_values)
+        return self._bifurcation_in_color.links(np.int32(bifurcation_idx))
+
+    def out_edges(self, bifurcation_idx: int) -> npt.NDArray[np.int32 | np.int64]:
+        """Return the list of out-edge colors for a given bifurcation node.
+        Index is is the index of the bifurcation in {py:meth}`self.bifurcation_values`."""
+        assert bifurcation_idx < len(self.bifurcation_values)
+        return self._bifurcation_out_color.links(np.int32(bifurcation_idx))
+
+    @property
+    def num_edge_colors(self) -> int:
+        """Return the number of edge colors in the network mesh."""
+        return self._num_edge_colors
 
     @property
     def in_marker(self) -> int:
