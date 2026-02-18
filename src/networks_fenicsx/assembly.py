@@ -247,8 +247,8 @@ class HydraulicNetworkAssembler:
             ds_edge = ufl.Measure("ds", domain=submesh, subdomain_data=facet_marker)
 
             a[i][i] += R * qs[i] * vs[i] * dx_edge
-            a[num_qs][i] += phi * ufl.dot(ufl.grad(qs[i]), tangent) * dx_edge
-            a[i][num_qs] = -p * ufl.dot(ufl.grad(vs[i]), tangent) * dx_edge
+            a[num_flux_spaces][i] += phi * ufl.dot(ufl.grad(qs[i]), tangent) * dx_edge
+            a[i][num_flux_spaces] = -p * ufl.dot(ufl.grad(vs[i]), tangent) * dx_edge
 
 
             # Add all boundary contributions
