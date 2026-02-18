@@ -18,14 +18,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        label: [
-          "stable",
-          "nightly"
-        ]
-
+        label: ["stable", "nightly"]
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Update pip
         run: python3 -m pip install --upgrade pip
@@ -44,4 +40,4 @@ jobs:
 
       - name: Run demos
         working-directory: demos
-        run: pytest . -sv 
+        run: pytest . -sv

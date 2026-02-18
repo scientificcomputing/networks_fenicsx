@@ -26,7 +26,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Install dependencies
         run: python3 -m pip install ".[docs]"
@@ -35,7 +35,7 @@ jobs:
         run: jupyter book build --keep-going .
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           path: ${{ env.PUBLISH_DIR }}
           name: ${{ matrix.label }}-docs

@@ -24,7 +24,7 @@ jobs:
 
     steps:
       # This action sets the current path to the root of your github repo
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v6
@@ -43,4 +43,3 @@ jobs:
           mypy src
           mypy demos
           mypy tests
-      

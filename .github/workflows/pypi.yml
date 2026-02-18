@@ -10,23 +10,23 @@ jobs:
       DEB_PYTHON_INSTALL_LAYOUT: deb_system
 
     steps:
-    - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
-    - name: Install build dependencies
-      run: |
-        python3 -m pip install --upgrade build twine
-        python3 -m pip install scikit-build-core
-        python3 -m scikit_build_core.build requires | python3 -c "import sys, json; print(' '.join(json.load(sys.stdin)))" | xargs pip install
+      - name: Install build dependencies
+        run: |
+          python3 -m pip install --upgrade build twine
+          python3 -m pip install scikit-build-core
+          python3 -m scikit_build_core.build requires | python3 -c "import sys, json; print(' '.join(json.load(sys.stdin)))" | xargs pip install
 
-    - name: Build SDist and wheel
-      run: python3 -m build --no-isolation --sdist
+      - name: Build SDist and wheel
+        run: python3 -m build --no-isolation --sdist
 
-    - uses: actions/upload-artifact@v5
-      with:
-        path: dist/*
+      - uses: actions/upload-artifact@v6
+        with:
+          path: dist/*
 
-    - name: Check metadata
-      run: python3 -m twine check dist/*
+      - name: Check metadata
+        run: python3 -m twine check dist/*
 
   publish:
     needs: [dist]
@@ -37,9 +37,9 @@ jobs:
       id-token: write
 
     steps:
-    - uses: actions/download-artifact@v6
-      with:
-        name: artifact
-        path: dist
+      - uses: actions/download-artifact@v7
+        with:
+          name: artifact
+          path: dist
 
-    - uses: pypa/gh-action-pypi-publish@release/v1
+      - uses: pypa/gh-action-pypi-publish@release/v1
