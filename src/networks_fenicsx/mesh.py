@@ -384,7 +384,7 @@ class NetworkMesh:
         e_geo = mesh.entities_to_geometry(self.mesh, tdim, e_idx)
 
         global_input = self.mesh.geometry.input_global_indices
-        in_order = global_input[e_geo[:, 0]] < global_input[e_geo[:, 1]]
+        in_order = _original_order(global_input[e_geo[:, 0]], global_input[e_geo[:, 1]])
 
         # Four cases that might arise (per edge), with naming i := input_in_order, n := in_order:
         # 1) i & n:
