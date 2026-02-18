@@ -39,9 +39,6 @@ def test_orientation(n: int, order: str, N: int) -> None:
         raise RuntimeError()
 
     G = linear_graph(n, ordered=ordered)
-    # import matplotlib.pyplot as plt
-    # nx.draw(G)
-    # plt.show()
 
     network_mesh = NetworkMesh(G, N=N)
 
