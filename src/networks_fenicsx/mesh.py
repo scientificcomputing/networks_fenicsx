@@ -76,7 +76,6 @@ class NetworkMesh:
     _edge_meshes: list[mesh.Mesh]
     _edge_entity_maps: list[mesh.EntityMap]
     _orientation: fem.Function
-    _bifurcation_values: npt.NDArray[np.int32]
 
     _boundary_values: npt.NDArray[np.int32]
     _lm_mesh: mesh.Mesh | None
