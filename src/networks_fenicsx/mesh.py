@@ -177,7 +177,6 @@ class NetworkMesh:
             assert isinstance(graph, nx.DiGraph), f"Directional graph not present of {graph_rank}"
             geom_dim = len(graph.nodes[1]["pos"])
             edge_coloring = color_graph(graph, color_strategy)
-
             num_edge_colors = len(set(edge_coloring.values()))
             cells_array = np.asarray([[u, v] for u, v in graph.edges()])
             number_of_nodes = graph.number_of_nodes()
@@ -198,14 +197,16 @@ class NetworkMesh:
                     bifurcation_in_offsets, len(bifurcation_in_color) + len(in_edges)
                 )
                 bifurcation_in_color = np.append(
-                    bifurcation_in_color, [edge_coloring[edge] for edge in in_edges]
+                    bifurcation_in_color,
+                    np.asarray([edge_coloring[edge] for edge in in_edges], dtype=np.int32),
                 )
                 out_edges = graph.out_edges(bifurcation)
                 bifurcation_out_offsets = np.append(
                     bifurcation_out_offsets, len(bifurcation_out_color) + len(out_edges)
                 )
                 bifurcation_out_color = np.append(
-                    bifurcation_out_color, [edge_coloring[edge] for edge in out_edges]
+                    bifurcation_out_color,
+                    np.asarray([edge_coloring[edge] for edge in out_edges], dtype=np.int32),
                 )
 
             # Map boundary_values to inlet and outlet data from graph
