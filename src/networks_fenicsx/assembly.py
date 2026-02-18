@@ -42,22 +42,26 @@ def compute_integration_data(
     """
 
     # Pack all bifurcation in and out fluxes per colored edge in graph
-    influx_color_to_bifurcations: dict[int, list[int]] = {
-        int(color): [] for color in range(network_mesh._num_edge_colors)
+    influx_color_to_bifurcations: dict[int, npt.NDArray[np.int32]] = {
+        int(color): np.empty(0, dtype=np.int32) for color in range(network_mesh.num_edge_colors)
     }
-    outflux_color_to_bifurcations: dict[int, list[int]] = {
-        int(color): [] for color in range(network_mesh._num_edge_colors)
+    outflux_color_to_bifurcations: dict[int, npt.NDArray[np.int32]] = {
+        int(color): np.empty(0, dtype=np.int32) for color in range(network_mesh.num_edge_colors)
     }
-    for bifurcation in network_mesh.bifurcation_values:
-        for color in network_mesh.in_edges(bifurcation):
-            influx_color_to_bifurcations[color].append(int(bifurcation))
-        for color in network_mesh.out_edges(bifurcation):
-            outflux_color_to_bifurcations[color].append(int(bifurcation))
+    for i, bifurcation in enumerate(network_mesh.bifurcation_values):
+        for color in network_mesh.in_edges(i):
+            influx_color_to_bifurcations[color] = np.append(
+                influx_color_to_bifurcations[color], bifurcation
+            )
+        for color in network_mesh.out_edges(i):
+            outflux_color_to_bifurcations[color] = np.append(
+                outflux_color_to_bifurcations[color], bifurcation
+            )
     # Accumulate integration data for all in-edges on the same submesh.
     in_flux_entities: dict[int, npt.NDArray[np.int32]] = {}
     out_flux_entities: dict[int, npt.NDArray[np.int32]] = {}
 
-    for color in range(network_mesh._num_edge_colors):
+    for color in range(network_mesh.num_edge_colors):
         sm = network_mesh.submeshes[color]
         smfm = network_mesh.submesh_facet_markers[color]
         sm.topology.create_connectivity(sm.topology.dim - 1, sm.topology.dim)
@@ -183,7 +187,7 @@ class HydraulicNetworkAssembler:
            f: source term
            p_bc: neumann bc for pressure
         """
-        num_qs = self._network_mesh._num_edge_colors
+        num_flux_spaces = self._network_mesh.num_edge_colors
 
         test_functions = [ufl.TestFunction(fs) for fs in self.function_spaces]
         trial_functions = [ufl.TrialFunction(fs) for fs in self.function_spaces]
@@ -218,7 +222,6 @@ class HydraulicNetworkAssembler:
         network_mesh = self._network_mesh
 
         # Assemble edge contributions to a and L
-        num_qs = len(self._network_mesh.submeshes)
         P1_e = fem.functionspace(network_mesh.mesh, ("Lagrange", 1))
         p_bc = fem.Function(P1_e)
         if isinstance(p_bc_ex, ufl.core.expr.Expr):
@@ -248,15 +251,15 @@ class HydraulicNetworkAssembler:
             ds_edge = ufl.Measure("ds", domain=submesh, subdomain_data=facet_marker)
 
             a[i][i] += R * qs[i] * vs[i] * dx_edge
-            a[num_qs][i] += phi * ufl.dot(ufl.grad(qs[i]), tangent) * dx_edge
-            a[i][num_qs] = -p * ufl.dot(ufl.grad(vs[i]), tangent) * dx_edge
+            a[num_flux_spaces][i] += phi * ufl.dot(ufl.grad(qs[i]), tangent) * dx_edge
+            a[i][num_flux_spaces] = -p * ufl.dot(ufl.grad(vs[i]), tangent) * dx_edge
 
             # Add all boundary contributions
             L[i] = p_bc * vs[i] * ds_edge(network_mesh.in_marker) - p_bc * vs[i] * ds_edge(
                 network_mesh.out_marker
             )
 
-        L[num_qs] += f * phi * dx_global
+        L[num_flux_spaces] += f * phi * dx_global
 
         # Multiplier mesh and flux share common parent mesh.
         # We create unique integration entities for each in and out branch
