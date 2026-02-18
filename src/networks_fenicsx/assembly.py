@@ -256,7 +256,7 @@ class HydraulicNetworkAssembler:
                 network_mesh.out_marker
             )
 
-        L[num_qs] += f * phi * dx_global
+        L[num_flux_spaces] += f * phi * dx_global
 
         # Multiplier mesh and flux share common parent mesh.
         # We create unique integration entities for each in and out branch
