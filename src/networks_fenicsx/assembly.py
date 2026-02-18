@@ -250,7 +250,6 @@ class HydraulicNetworkAssembler:
             a[num_flux_spaces][i] += phi * ufl.dot(ufl.grad(qs[i]), tangent) * dx_edge
             a[i][num_flux_spaces] = -p * ufl.dot(ufl.grad(vs[i]), tangent) * dx_edge
 
-
             # Add all boundary contributions
             L[i] = p_bc * vs[i] * ds_edge(network_mesh.in_marker) - p_bc * vs[i] * ds_edge(
                 network_mesh.out_marker
