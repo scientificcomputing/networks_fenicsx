@@ -262,6 +262,10 @@ class NetworkMesh:
             bifurcation_out_color, bifurcation_out_offsets
         )
 
+        def _original_order(a, b):
+            """Order on edge entities to detect order reversals during mesh generation."""
+            return a < b
+
         # Generate mesh
         if comm.rank == graph_rank:
             assert isinstance(graph, nx.DiGraph), (
@@ -278,7 +282,7 @@ class NetworkMesh:
                     cell_markers.append(edge_coloring[(segment[0], segment[1])])
                     start = vertex_coords[segment[0]]
                     end = vertex_coords[segment[1]]
-                    in_order = segment[0] < segment[1]
+                    in_order = _original_order(segment[0], segment[1])
             else:
                 for segment in cells_array:
                     start_coord_pos = mesh_nodes.shape[0]
@@ -286,7 +290,7 @@ class NetworkMesh:
                     end = vertex_coords[segment[1]]
                     internal_line_coords = start * (1 - line_weights) + end * line_weights
 
-                    in_order = segment[0] < segment[1]
+                    in_order = _original_order(segment[0], segment[1])
 
                     mesh_nodes = np.vstack((mesh_nodes, internal_line_coords))
                     cells.append(np.array([segment[0], start_coord_pos], dtype=np.int64))
@@ -318,7 +322,7 @@ class NetworkMesh:
             cell_markers_ = np.array(cell_markers, dtype=np.int32)
 
             orientations = np.full_like(cell_markers_, 1.0, dtype=np.float64)
-            orientations[cells_[:, 0] > cells_[:, 1]] = -1.0
+            orientations[~_original_order(cells_[:, 0], cells_[:, 1])] = -1.0
 
             assert cell_markers_.shape == orientations.shape
         else:
