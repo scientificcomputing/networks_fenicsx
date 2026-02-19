@@ -235,7 +235,11 @@ class HydraulicNetworkAssembler:
 
         dx_global = ufl.Measure("dx", domain=network_mesh.mesh)
 
-        tangent = self._network_mesh.tangent
+        J = ufl.Jacobian(network_mesh.mesh)
+        t = J[:, 0]
+        t /= ufl.sqrt(ufl.inner(t, t))
+
+        tangent = self._network_mesh.orientation * t
         for i, (submesh, entity_map, facet_marker) in enumerate(
             zip(
                 network_mesh.submeshes,
