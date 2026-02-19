@@ -282,15 +282,12 @@ class NetworkMesh:
                     cell_markers.append(edge_coloring[(segment[0], segment[1])])
                     start = vertex_coords[segment[0]]
                     end = vertex_coords[segment[1]]
-                    in_order = _original_order(segment[0], segment[1])
             else:
                 for segment in cells_array:
                     start_coord_pos = mesh_nodes.shape[0]
                     start = vertex_coords[segment[0]]
                     end = vertex_coords[segment[1]]
                     internal_line_coords = start * (1 - line_weights) + end * line_weights
-
-                    in_order = _original_order(segment[0], segment[1])
 
                     mesh_nodes = np.vstack((mesh_nodes, internal_line_coords))
                     cells.append(np.array([segment[0], start_coord_pos], dtype=np.int64))
