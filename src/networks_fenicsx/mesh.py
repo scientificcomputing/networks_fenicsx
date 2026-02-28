@@ -512,13 +512,13 @@ class NetworkMesh:
     def boundary_values(self) -> npt.NDArray[np.int32]:
         return self._boundary_values
 
-    def in_edges(self, bifurcation_idx: int) -> npt.NDArray[np.int32 | np.int64]:
+    def in_edges(self, bifurcation_idx: int) -> npt.NDArray[np.int32]:
         """Return the list of in-edge colors for a given bifurcation node.
         Index is is the index of the bifurcation in {py:meth}`self.bifurcation_values`."""
         assert bifurcation_idx < len(self.bifurcation_values)
         return self._bifurcation_in_color.links(np.int32(bifurcation_idx))
 
-    def out_edges(self, bifurcation_idx: int) -> npt.NDArray[np.int32 | np.int64]:
+    def out_edges(self, bifurcation_idx: int) -> npt.NDArray[np.int32]:
         """Return the list of out-edge colors for a given bifurcation node.
         Index is is the index of the bifurcation in {py:meth}`self.bifurcation_values`."""
         assert bifurcation_idx < len(self.bifurcation_values)
